@@ -110,6 +110,51 @@
       </div>
     </section>
 
+    <!-- Teams -->
+    <div class="rule-dashed mx-auto max-w-6xl" />
+    <section class="mx-auto max-w-6xl px-6 py-20">
+      <div class="text-center">
+        <p class="eyebrow">For teams</p>
+        <h2 class="mt-7 text-4xl leading-[1.1] font-semibold tracking-tight text-balance sm:text-5xl">
+          Two replies from one brand
+          <span class="accent-line mt-1.5 block font-normal">is worse than none.</span>
+        </h2>
+        <p class="mx-auto mt-7 max-w-2xl text-lg leading-relaxed text-ink-soft">
+          It’s the one thing a shared inbox has to get right. Two people find the same
+          thread, both write something helpful, both post. Now it reads as brigading, both
+          comments get buried, and the account picks up a reputation it can’t shake.
+          So claiming happens on the card, before anyone opens Reddit.
+        </p>
+      </div>
+
+      <!-- Mirrors the real card, claimed state included. -->
+      <div class="mx-auto mt-12 max-w-2xl rounded-2xl border border-rule bg-card p-6 shadow-sm">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <p class="font-medium">is [competitor] worth it or should I look elsewhere</p>
+            <p class="mt-1 text-sm text-ink-soft">r/Entrepreneur · 9h ago · 5 comments</p>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <span class="rounded-full border border-signal/40 bg-signal/10 px-2.5 py-1 text-xs text-signal">
+              Priya · 4m ago
+            </span>
+            <span class="rounded-lg border border-rule px-2.5 py-1 font-mono text-ink-soft tabular-nums">64</span>
+          </div>
+        </div>
+
+        <p class="mt-4 rounded-lg border border-rule bg-paper px-3 py-2 text-sm text-ink-soft">
+          Priya claimed this thread. Coordinate before posting.
+        </p>
+      </div>
+
+      <div class="mt-12 grid gap-10 md:grid-cols-3">
+        <article v-for="item in team" :key="item.title">
+          <h3 class="text-lg font-medium">{{ item.title }}</h3>
+          <p class="mt-2 leading-relaxed text-ink-soft">{{ item.body }}</p>
+        </article>
+      </div>
+    </section>
+
     <!-- What it won’t do -->
     <div class="rule-dashed mx-auto max-w-6xl" />
     <section class="mx-auto max-w-3xl px-6 py-20 text-center">
@@ -172,7 +217,21 @@ export default {
         },
         {
           title: 'Work the inbox',
-          body: 'Scored threads arrive with a draft attached. Edit it, copy it, open the thread, mark it replied. Rescans never touch your notes.',
+          body: 'Scored threads arrive with a draft attached. Claim one so nobody doubles up, edit it, post it, mark it replied. Rescans never touch your notes.',
+        },
+      ],
+      team: [
+        {
+          title: 'Your own draft',
+          body: 'Everyone gets their own version on a lead, so a teammate saving theirs never overwrites yours. One person can draft and another can review.',
+        },
+        {
+          title: 'A record of what shipped',
+          body: 'Marking a lead replied captures the link to the comment. The team can see what actually went out, and which drafts earned upvotes.',
+        },
+        {
+          title: 'Roles that mean something',
+          body: 'Owners and admins manage campaigns and invite people. Members work the queue without being able to delete the work.',
         },
       ],
       signals: [
