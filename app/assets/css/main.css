@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+@theme {
+  --color-void: #08090b;
+  --color-panel: #101216;
+  --color-panel-2: #171a1f;
+  --color-line: #24282f;
+  --color-line-2: #313640;
+  --color-mute: #8b93a0;
+  --color-fg: #e7eaee;
+  --color-signal: #ff4a1c;
+  --color-signal-soft: #ff7d55;
+  --color-ok: #34d399;
+  --color-warn: #fbbf24;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+@layer base {
+  html {
+    background-color: var(--color-void);
+    color: var(--color-fg);
+    color-scheme: dark;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: var(--color-signal);
+    color: white;
+  }
+}
+
+@layer components {
+  /* Shared button chrome. Grouped rather than composed — Tailwind v4's `@apply`
+     only takes real utilities, not other custom classes. */
+  .btn-primary,
+  .btn-ghost,
+  .btn-quiet {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium
+           transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply bg-signal px-4 py-2 text-white hover:bg-signal-soft;
+  }
+
+  .btn-ghost {
+    @apply border border-line bg-panel-2 px-4 py-2 text-fg hover:border-line-2 hover:bg-line;
+  }
+
+  .btn-quiet {
+    @apply px-2.5 py-1 text-xs text-mute hover:bg-panel-2 hover:text-fg;
+  }
+
+  .input {
+    @apply w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-fg
+           placeholder:text-mute/60 focus:border-signal focus:outline-none;
+  }
+
+  .label {
+    @apply mb-1.5 block text-xs font-medium tracking-wide text-mute uppercase;
+  }
+
+  .card {
+    @apply rounded-xl border border-line bg-panel p-5;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-line bg-panel-2
+           px-2.5 py-1 text-xs text-fg;
+  }
+}
+
+/* Radar sweep on the landing hero. */
+@keyframes radar-sweep {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.radar-sweep {
+  animation: radar-sweep 4s linear infinite;
+  transform-origin: center;
+}
+
+@keyframes radar-ping {
+  0%   { opacity: 0; transform: scale(0.6); }
+  35%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.6); }
+}
+
+.radar-ping {
+  animation: radar-ping 4s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .radar-sweep,
+  .radar-ping {
+    animation: none;
+  }
+}

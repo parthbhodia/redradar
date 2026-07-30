@@ -1,0 +1,99 @@
+export type LeadStatus = 'new' | 'queued' | 'replied' | 'skipped' | 'won'
+
+export const LEAD_STATUSES: LeadStatus[] = ['new', 'queued', 'replied', 'skipped', 'won']
+
+export type CampaignStatus = 'active' | 'paused' | 'archived'
+
+export interface Org {
+  id: string
+  name: string
+  slug: string
+  created_at: string
+}
+
+export interface Brand {
+  id: string
+  org_id: string
+  name: string
+  tagline: string | null
+  description: string | null
+  voice: string | null
+  competitors: string[]
+  created_at: string
+}
+
+export interface Campaign {
+  id: string
+  brand_id: string
+  name: string
+  status: CampaignStatus
+  created_at: string
+}
+
+export interface Keyword {
+  id: string
+  campaign_id: string
+  phrase: string
+  subreddit_filter: string | null
+  created_at: string
+}
+
+export interface Lead {
+  id: string
+  campaign_id: string
+  platform: string
+  external_id: string
+  url: string
+  title: string | null
+  body: string | null
+  subreddit: string | null
+  author: string | null
+  score: number
+  signals: string[]
+  matched_keyword: string | null
+  status: LeadStatus
+  reply_draft: string | null
+  posted_at: string | null
+  discovered_at: string
+  updated_at: string
+}
+
+/** A thread as returned by the Reddit fetch layer, before scoring. */
+export interface RedditPost {
+  id: string
+  title: string
+  body: string
+  subreddit: string
+  author: string
+  url: string
+  createdAt: string
+  numComments: number
+  ups: number
+  over18: boolean
+}
+
+export interface DiscoverRequest {
+  campaignId: string
+  /** Optional cap on threads fetched per keyword. Defaults to 25. */
+  limit?: number
+}
+
+export interface DiscoverResponse {
+  scanned: number
+  inserted: number
+  updated: number
+  skipped: number
+  keywords: number
+  errors: string[]
+}
+
+export interface DraftRequest {
+  leadId: string
+  /** Optional nudge, e.g. "shorter" or "lead with the migration story". */
+  instruction?: string
+}
+
+export interface DraftResponse {
+  draft: string
+  model: string
+}

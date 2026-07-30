@@ -1,0 +1,136 @@
+<template>
+  <div class="space-y-6">
+    <div class="flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">Inbox</h1>
+        <p class="mt-1 text-sm text-mute">Scored threads, highest intent first.</p>
+      </div>
+
+      <select v-if="campaigns.length > 1" v-model="activeCampaignId" class="input max-w-56">
+        <option v-for="campaign in campaigns" :key="campaign.id" :value="campaign.id">
+          {{ campaign.name }}
+        </option>
+      </select>
+    </div>
+
+    <p v-if="error" class="rounded-lg border border-signal/30 bg-signal/10 px-3 py-2 text-sm text-signal-soft">
+      {{ error }}
+    </p>
+
+    <div v-if="activeCampaignId" class="flex flex-wrap items-center gap-1.5">
+      <button
+        v-for="tab in tabs"
+        :key="tab.value"
+        class="rounded-lg px-3 py-1.5 text-sm capitalize transition-colors"
+        :class="tab.value === filter ? 'bg-panel-2 text-fg' : 'text-mute hover:text-fg'"
+        @click="filter = tab.value"
+      >
+        {{ tab.label }}
+        <span class="ml-1 font-mono text-xs text-mute">{{ tab.count }}</span>
+      </button>
+    </div>
+
+    <p v-if="loading" class="text-sm text-mute">Loading leads…</p>
+
+    <div v-else-if="!activeCampaignId" class="card text-sm text-mute">
+      No campaign yet. <NuxtLink to="/app" class="text-signal hover:underline">Set one up</NuxtLink> first.
+    </div>
+
+    <div v-else-if="!visible.length" class="card text-sm text-mute">
+      <template v-if="leads.length">Nothing with that status yet.</template>
+      <template v-else>
+        No leads yet. <NuxtLink to="/app" class="text-signal hover:underline">Run a scan</NuxtLink> to fill this up.
+      </template>
+    </div>
+
+    <div v-else class="space-y-4">
+      <LeadCard
+        v-for="lead in visible"
+        :key="lead.id"
+        :lead="lead"
+        @update="applyUpdate"
+      />
+    </div>
+  </div>
+</template>
+
+<script>
+import { LEAD_STATUSES } from '#shared/types'
+
+export default {
+  setup() {
+    useHead({ title: 'Inbox — RedRadar' })
+    const workspace = useWorkspace()
+    return { supabase: useSupabaseClient(), ...workspace }
+  },
+
+  data() {
+    return {
+      leads: [],
+      loading: true,
+      error: '',
+      filter: 'all',
+    }
+  },
+
+  computed: {
+    visible() {
+      const rows = this.filter === 'all'
+        ? this.leads
+        : this.leads.filter(lead => lead.status === this.filter)
+
+      return [...rows].sort((a, b) => b.score - a.score)
+    },
+
+    tabs() {
+      return [
+        { value: 'all', label: 'all', count: this.leads.length },
+        ...LEAD_STATUSES.map(status => ({
+          value: status,
+          label: status,
+          count: this.leads.filter(lead => lead.status === status).length,
+        })),
+      ]
+    },
+  },
+
+  watch: {
+    activeCampaignId(id) {
+      if (id) this.loadLeads()
+    },
+  },
+
+  async mounted() {
+    try {
+      await this.load()
+      if (this.activeCampaignId) await this.loadLeads()
+    } catch (e) {
+      this.error = e.message
+    } finally {
+      this.loading = false
+    }
+  },
+
+  methods: {
+    async loadLeads() {
+      this.loading = true
+
+      const { data, error } = await this.supabase
+        .from('leads')
+        .select('*')
+        .eq('campaign_id', this.activeCampaignId)
+        .order('score', { ascending: false })
+
+      if (error) this.error = error.message
+      else this.leads = data ?? []
+
+      this.loading = false
+    },
+
+    applyUpdate({ id, patch }) {
+      const lead = this.leads.find(l => l.id === id)
+      if (lead) Object.assign(lead, patch)
+    },
+  },
+}
+</script>
