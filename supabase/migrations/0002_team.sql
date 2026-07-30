@@ -94,25 +94,27 @@ as $$
 $$;
 
 -- Destructive / structural actions now need admin; day-to-day stays member.
-drop policy orgs_update on public.orgs;
+-- `if exists` throughout: a bare drop on a missing policy aborts the whole
+-- script, which leaves tables created but unprotected by any policy.
+drop policy if exists orgs_update on public.orgs;
 create policy orgs_update on public.orgs
   for update to authenticated
   using (public.is_org_admin(id)) with check (public.is_org_admin(id));
 
-drop policy org_members_insert on public.org_members;
+drop policy if exists org_members_insert on public.org_members;
 create policy org_members_insert on public.org_members
   for insert to authenticated with check (public.is_org_admin(org_id));
 
-drop policy org_members_delete on public.org_members;
+drop policy if exists org_members_delete on public.org_members;
 create policy org_members_delete on public.org_members
   for delete to authenticated
   using (user_id = auth.uid() or public.is_org_admin(org_id));
 
-drop policy brands_delete on public.brands;
+drop policy if exists brands_delete on public.brands;
 create policy brands_delete on public.brands
   for delete to authenticated using (public.is_org_admin(org_id));
 
-drop policy campaigns_delete on public.campaigns;
+drop policy if exists campaigns_delete on public.campaigns;
 create policy campaigns_delete on public.campaigns
   for delete to authenticated
   using (exists (
