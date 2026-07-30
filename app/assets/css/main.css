@@ -13,8 +13,16 @@
   --color-ok: #34d399;
   --color-warn: #fbbf24;
 
+  /* Marketing surface. The app stays dark; the public site is paper. */
+  --color-paper: #f8f7f4;
+  --color-card: #ffffff;
+  --color-ink: #14130f;
+  --color-ink-soft: #5d594f;
+  --color-rule: #dcd8d0;
+
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --font-display: ui-serif, Georgia, "Times New Roman", serif;
 }
 
 @layer base {
@@ -24,9 +32,25 @@
     color-scheme: dark;
   }
 
+  /* Set by the marketing layout so overscroll doesn't reveal the app's black. */
+  html.paper {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    color-scheme: light;
+  }
+
   body {
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+  }
+
+  .skip-link {
+    @apply sr-only;
+  }
+
+  .skip-link:focus-visible {
+    @apply not-sr-only fixed top-3 left-3 z-50 rounded-lg bg-signal px-4 py-2
+           text-sm font-medium text-white;
   }
 
   ::selection {
@@ -42,7 +66,9 @@
   .btn-ghost,
   .btn-quiet {
     @apply inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium
-           transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+           transition-colors disabled:cursor-not-allowed disabled:opacity-50
+           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal;
+    touch-action: manipulation;
   }
 
   .btn-primary {
@@ -59,7 +85,8 @@
 
   .input {
     @apply w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-fg
-           placeholder:text-mute/60 focus:border-signal focus:outline-none;
+           placeholder:text-mute/60 focus:border-signal focus:outline-none
+           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal;
   }
 
   .label {
@@ -72,7 +99,52 @@
 
   .chip {
     @apply inline-flex items-center gap-1.5 rounded-full border border-line bg-panel-2
-           px-2.5 py-1 text-xs text-fg;
+           px-2.5 py-1 text-xs text-fg
+           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal;
+    touch-action: manipulation;
+  }
+
+  /* --- marketing surface ------------------------------------------------ */
+
+  /* Dashed eyebrow pill that opens each section. */
+  .eyebrow {
+    @apply inline-flex items-center rounded-full border border-dashed border-rule
+           px-4 py-1.5 text-xs font-medium tracking-[0.12em] text-ink-soft uppercase;
+  }
+
+  .rule-dashed {
+    @apply border-t border-dashed border-rule;
+  }
+
+  /* The signature line: bold sans, then serif italic in the accent colour. */
+  .accent-line {
+    font-family: var(--font-display);
+    @apply text-signal italic;
+  }
+
+  .btn-ink {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-ink px-7 py-3.5
+           text-base font-medium text-paper transition-colors hover:bg-ink/85
+           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal;
+    touch-action: manipulation;
+  }
+
+  .input-paper {
+    @apply w-full rounded-xl border border-rule bg-card px-4 py-3 text-base text-ink
+           placeholder:text-ink-soft/50 transition-colors
+           focus:border-ink/40 focus:outline-none
+           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal;
+  }
+
+  .label-paper {
+    @apply mb-1.5 block text-xs font-medium tracking-[0.08em] text-ink-soft uppercase;
+  }
+
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-rule
+           bg-card px-7 py-3.5 text-base font-medium text-ink transition-colors hover:border-ink/30
+           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal;
+    touch-action: manipulation;
   }
 }
 
@@ -84,6 +156,7 @@
 
 .radar-sweep {
   animation: radar-sweep 4s linear infinite;
+  transform-box: fill-box;
   transform-origin: center;
 }
 

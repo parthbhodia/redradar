@@ -1,26 +1,68 @@
 import type { H3Event } from 'h3'
-import { serverSupabaseClient, serverSupabaseUser } from '#supabase/server'
+import { getCookie, setCookie, deleteCookie } from 'h3'
+import {
+  getCampaignWithBrand,
+  getLocalUser,
+  isLocalMode,
+  userCanAccessCampaign,
+} from './local-db'
 
-/**
- * Returns a Supabase client bound to the caller's session, so every query below
- * still runs under RLS. Throws 401 when there's no session.
- */
+export const LOCAL_SESSION_COOKIE = 'rr_local_uid'
+
+export function setLocalSession(event: H3Event, userId: string) {
+  setCookie(event, LOCAL_SESSION_COOKIE, userId, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 30,
+  })
+}
+
+export function clearLocalSession(event: H3Event) {
+  deleteCookie(event, LOCAL_SESSION_COOKIE, { path: '/' })
+}
+
 export async function requireUserClient(event: H3Event) {
-  const user = await serverSupabaseUser(event)
+  if (isLocalMode()) {
+    const userId = getCookie(event, LOCAL_SESSION_COOKIE)
+    if (!userId) {
+      throw createError({ statusCode: 401, statusMessage: 'Not signed in.' })
+    }
+    const user = getLocalUser(userId)
+    if (!user) {
+      throw createError({ statusCode: 401, statusMessage: 'Not signed in.' })
+    }
+    return { user: { id: user.id, email: user.email }, client: null as null, local: true as const }
+  }
+
+  // Lazy import so local-mode routes that only need cookies don't fail when the
+  // Supabase Nuxt module isn't generating the #supabase/server alias.
+  const mod = await import('#supabase/server') as {
+    serverSupabaseClient: (event: H3Event) => Promise<any>
+    serverSupabaseUser: (event: H3Event) => Promise<any>
+  }
+  const user = await mod.serverSupabaseUser(event)
   if (!user) {
     throw createError({ statusCode: 401, statusMessage: 'Not signed in.' })
   }
-  return { user, client: await serverSupabaseClient(event) }
+  return { user, client: await mod.serverSupabaseClient(event), local: false as const }
 }
 
-/**
- * Loads a campaign with its brand. RLS does the authorization — a campaign in
- * someone else's org simply doesn't come back.
- */
 export async function requireCampaign(event: H3Event, campaignId: string) {
-  const { client } = await requireUserClient(event)
+  const auth = await requireUserClient(event)
 
-  const { data, error } = await client
+  if (auth.local) {
+    if (!userCanAccessCampaign(auth.user.id, campaignId)) {
+      throw createError({ statusCode: 404, statusMessage: 'Campaign not found.' })
+    }
+    const row = getCampaignWithBrand(campaignId)
+    if (!row) {
+      throw createError({ statusCode: 404, statusMessage: 'Campaign not found.' })
+    }
+    return { ...auth, campaign: row.campaign, brand: row.brand }
+  }
+
+  const { data, error } = await auth.client!
     .from('campaigns')
     .select('id, name, status, brand_id, brands(id, org_id, name, tagline, description, voice, competitors)')
     .eq('id', campaignId)
@@ -35,5 +77,5 @@ export async function requireCampaign(event: H3Event, campaignId: string) {
     throw createError({ statusCode: 404, statusMessage: 'Campaign has no brand.' })
   }
 
-  return { client, campaign: data, brand }
+  return { ...auth, campaign: data, brand }
 }

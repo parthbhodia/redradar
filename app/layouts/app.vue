@@ -1,5 +1,6 @@
 <template>
   <div class="min-h-screen bg-void">
+    <a href="#main" class="skip-link">Skip to content</a>
     <header class="sticky top-0 z-10 border-b border-line/60 bg-void/85 backdrop-blur">
       <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3">
         <div class="flex items-center gap-6">
@@ -28,7 +29,7 @@
       </div>
     </header>
 
-    <main class="mx-auto max-w-6xl px-6 py-8">
+    <main id="main" class="mx-auto max-w-6xl px-6 py-8">
       <slot />
     </main>
   </div>
@@ -37,15 +38,23 @@
 <script>
 export default {
   setup() {
+    const config = useRuntimeConfig()
+    useHead({ meta: [{ name: 'theme-color', content: '#08090b' }] })
     const { org } = useWorkspace()
-    return { supabase: useSupabaseClient(), route: useRoute(), org }
+    return {
+      localMode: config.public.localMode,
+      supabase: config.public.localMode ? null : useSupabaseClient(),
+      route: useRoute(),
+      org,
+    }
   },
 
   data() {
     return {
       links: [
-        { to: '/app', label: 'Setup' },
+        { to: '/app/dashboard', label: 'Dashboard' },
         { to: '/app/inbox', label: 'Inbox' },
+        { to: '/app', label: 'Setup' },
       ],
     }
   },
@@ -56,7 +65,11 @@ export default {
     },
 
     async signOut() {
-      await this.supabase.auth.signOut()
+      if (this.localMode) {
+        await $fetch('/api/auth/logout', { method: 'POST' })
+      } else {
+        await this.supabase.auth.signOut()
+      }
       await navigateTo('/')
     },
   },

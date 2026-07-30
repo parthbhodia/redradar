@@ -1,26 +1,36 @@
 <template>
-  <div class="min-h-screen bg-void">
-    <header class="border-b border-line/60">
-      <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+  <div class="min-h-screen bg-paper text-ink">
+    <a href="#main" class="skip-link">Skip to content</a>
+    <header class="sticky top-0 z-20 bg-paper/80 backdrop-blur">
+      <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
         <NuxtLink to="/" class="flex items-center gap-2.5">
-          <RadarMark class="h-7 w-7" />
+          <RadarMark class="h-7 w-7 text-ink" />
           <span class="text-lg font-semibold tracking-tight">RedRadar</span>
         </NuxtLink>
 
         <nav class="flex items-center gap-2">
-          <NuxtLink v-if="user" to="/app" class="btn-ghost">Dashboard</NuxtLink>
-          <NuxtLink v-else to="/login" class="btn-primary">Get started</NuxtLink>
+          <NuxtLink
+            v-if="signedIn"
+            to="/app/dashboard"
+            class="rounded-full bg-ink px-5 py-2 text-sm font-medium text-paper"
+          >Dashboard</NuxtLink>
+          <NuxtLink
+            v-else
+            to="/login"
+            class="rounded-full bg-ink px-5 py-2 text-sm font-medium text-paper"
+          >Start free</NuxtLink>
         </nav>
       </div>
     </header>
 
-    <main>
+    <main id="main">
       <slot />
     </main>
 
-    <footer class="mt-24 border-t border-line/60">
-      <div class="mx-auto max-w-6xl px-6 py-8 text-sm text-mute">
-        RedRadar — Reddit lead discovery with AI reply drafts.
+    <footer class="rule-dashed mt-24">
+      <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-10 text-sm text-ink-soft">
+        <span>RedRadar. Reddit lead discovery with AI reply drafts.</span>
+        <NuxtLink to="/login" class="hover:text-ink">Sign in</NuxtLink>
       </div>
     </footer>
   </div>
@@ -29,7 +39,36 @@
 <script>
 export default {
   setup() {
-    return { user: useSupabaseUser() }
+    const config = useRuntimeConfig()
+    // Paints the document itself so overscroll doesn't flash the app's black.
+    useHead({
+      htmlAttrs: { class: 'paper' },
+      meta: [{ name: 'theme-color', content: '#f8f7f4' }],
+    })
+    return {
+      localMode: config.public.localMode,
+      user: config.public.localMode ? ref(null) : useSupabaseUser(),
+    }
+  },
+
+  data() {
+    return { localUser: null }
+  },
+
+  computed: {
+    signedIn() {
+      return this.localMode ? Boolean(this.localUser) : Boolean(this.user)
+    },
+  },
+
+  async mounted() {
+    if (!this.localMode) return
+    try {
+      const session = await $fetch('/api/session')
+      this.localUser = session.user
+    } catch {
+      this.localUser = null
+    }
   },
 }
 </script>

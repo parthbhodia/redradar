@@ -11,20 +11,28 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
-    "typecheck": "nuxt typecheck"
+    "typecheck": "nuxt typecheck",
+    "seed:cueful": "REDRADAR_LOCAL=1 node --import tsx/esm scripts/seed-cueful.mjs",
+    "db:reset": "rm -f data/redradar.sqlite data/redradar.sqlite-*"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
     "@nuxtjs/supabase": "^2.0.9",
     "@supabase/supabase-js": "^2.111.0",
+    "better-sqlite3": "^13.0.2",
+    "nanoid": "^6.0.0",
     "nuxt": "^4.5.1",
     "vue": "^3.5.40",
-    "vue-router": "^5.2.0"
+    "vue-router": "^5.2.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^26.1.2",
+    "jiti": "^2.7.0",
     "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.1",
     "typescript": "^5.9.3",
     "vue-tsc": "^3.3.8"
   }

@@ -1,4 +1,5 @@
 import type { RedditPost } from '#shared/types'
+import { createOpenCliAdapter } from './opencli-reddit'
 
 export interface RedditSearchOptions {
   query: string
@@ -157,5 +158,27 @@ export function createRedditAdapter(creds: RedditCredentials): RedditAdapter {
       userAgent: creds.userAgent,
     })
   }
+
+  // Public JSON is often blocked from datacenters / bot filters. Prefer OpenCLI
+  // (Chrome bridge) when available, then fall back to public endpoints.
+  if (process.env.REDDIT_USE_OPENCLI !== '0') {
+    const opencli = createOpenCliAdapter()
+    const pub = createPublicAdapter(creds.userAgent)
+    return {
+      mode: 'oauth',
+      async search(options) {
+        try {
+          return await opencli.search(options)
+        } catch (opencliError) {
+          try {
+            return await pub.search(options)
+          } catch {
+            throw opencliError
+          }
+        }
+      },
+    }
+  }
+
   return createPublicAdapter(creds.userAgent)
 }

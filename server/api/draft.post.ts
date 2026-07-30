@@ -1,6 +1,7 @@
 import type { DraftRequest, DraftResponse } from '#shared/types'
 import { requireUserClient } from '../utils/guard'
 import { generateReplyDraft } from '../utils/llm'
+import { getCampaignWithBrand, getLead, updateLead } from '../utils/local-db'
 
 export default defineEventHandler(async (event): Promise<DraftResponse> => {
   const body = await readBody<DraftRequest>(event)
@@ -9,15 +10,33 @@ export default defineEventHandler(async (event): Promise<DraftResponse> => {
   }
 
   const { anthropicApiKey } = useRuntimeConfig(event)
-  if (!anthropicApiKey) {
-    throw createError({ statusCode: 500, statusMessage: 'ANTHROPIC_API_KEY is not configured.' })
+  const { client, local, user } = await requireUserClient(event)
+
+  if (local) {
+    const lead = getLead(body.leadId)
+    if (!lead) {
+      throw createError({ statusCode: 404, statusMessage: 'Lead not found.' })
+    }
+    const row = getCampaignWithBrand(lead.campaign_id)
+    if (!row) {
+      throw createError({ statusCode: 409, statusMessage: 'Lead is not attached to a brand.' })
+    }
+
+    const { draft, model } = await generateReplyDraft(
+      {
+        brand: row.brand,
+        lead,
+        instruction: body.instruction,
+        previousDraft: lead.reply_draft || undefined,
+      },
+      anthropicApiKey || undefined,
+    )
+
+    updateLead(lead.id, { reply_draft: draft })
+    return { draft, model }
   }
 
-  const { client } = await requireUserClient(event)
-
-  // RLS scopes this to leads in the caller's orgs, so a missing row is a 404
-  // whether it doesn't exist or isn't theirs.
-  const { data: lead, error } = await client
+  const { data: lead, error } = await client!
     .from('leads')
     .select('id, title, body, subreddit, url, matched_keyword, campaign_id, campaigns(brands(name, tagline, description, voice, competitors))')
     .eq('id', body.leadId)
@@ -34,22 +53,36 @@ export default defineEventHandler(async (event): Promise<DraftResponse> => {
     throw createError({ statusCode: 409, statusMessage: 'Lead is not attached to a brand.' })
   }
 
+  // The caller's current draft, if any, so Regenerate takes a different angle
+  // instead of converging on the same text.
+  const { data: existingDraft } = await client!
+    .from('lead_drafts')
+    .select('body')
+    .eq('lead_id', lead.id)
+    .eq('user_id', user.id)
+    .maybeSingle()
+
   const { draft, model } = await generateReplyDraft(
     {
       brand,
       lead,
       instruction: body.instruction,
+      previousDraft: existingDraft?.body || undefined,
     },
-    anthropicApiKey,
+    anthropicApiKey || undefined,
   )
 
-  const { error: updateError } = await client
-    .from('leads')
-    .update({ reply_draft: draft })
-    .eq('id', lead.id)
+  // The draft is the caller's, not the lead's: per-user rows mean two
+  // teammates can each work a version without overwriting the other.
+  const { error: upsertError } = await client!
+    .from('lead_drafts')
+    .upsert(
+      { lead_id: lead.id, user_id: user.id, body: draft },
+      { onConflict: 'lead_id,user_id' },
+    )
 
-  if (updateError) {
-    throw createError({ statusCode: 500, statusMessage: `Could not save draft: ${updateError.message}` })
+  if (upsertError) {
+    throw createError({ statusCode: 500, statusMessage: `Could not save draft: ${upsertError.message}` })
   }
 
   return { draft, model }

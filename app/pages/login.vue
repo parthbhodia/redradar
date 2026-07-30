@@ -1,101 +1,93 @@
 <template>
-  <div class="mx-auto flex max-w-md flex-col justify-center px-6 py-24">
-    <h1 class="text-2xl font-semibold tracking-tight">Sign in to RedRadar</h1>
-    <p class="mt-2 text-sm text-mute">
-      We'll email you a link. No password to remember.
+  <!-- Minimal variant (?v=minimal): just the form, centred. -->
+  <div v-if="variant === 'minimal'" class="mx-auto max-w-md px-6 py-20">
+    <p class="eyebrow">Sign in</p>
+    <h1 class="mt-6 text-4xl font-semibold tracking-tight text-balance">
+      Back to the radar.
+    </h1>
+    <p class="mt-3 text-ink-soft">
+      {{ localMode
+        ? 'Local dogfood mode. Enter any address to continue.'
+        : 'A link lands in your inbox. No password to remember.' }}
     </p>
 
-    <form class="mt-8 space-y-4" @submit.prevent="sendLink">
-      <div>
-        <label class="label" for="email">Email</label>
-        <input
-          id="email"
-          v-model="email"
-          class="input"
-          type="email"
-          required
-          autocomplete="email"
-          placeholder="you@company.com"
-        >
+    <div class="mt-8">
+      <AuthForm />
+    </div>
+  </div>
+
+  <!-- Default: form on the left, what's waiting inside on the right. -->
+  <div v-else class="mx-auto grid max-w-6xl items-center gap-14 px-6 py-14 lg:min-h-[calc(100dvh-170px)] lg:grid-cols-2 lg:py-10">
+    <div class="mx-auto w-full max-w-md">
+      <p class="eyebrow">Sign in</p>
+      <h1 class="mt-6 text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+        Back to the radar.
+        <span class="accent-line mt-1.5 block font-normal">The threads don’t wait.</span>
+      </h1>
+      <p class="mt-4 text-ink-soft">
+        {{ localMode
+          ? 'Local dogfood mode. Enter any address to continue.'
+          : 'A link lands in your inbox. No password to remember.' }}
+      </p>
+
+      <div class="mt-8">
+        <AuthForm />
       </div>
-
-      <button class="btn-primary w-full" type="submit" :disabled="pending">
-        {{ pending ? 'Sending…' : 'Email me a link' }}
-      </button>
-    </form>
-
-    <div class="my-6 flex items-center gap-3 text-xs text-mute">
-      <span class="h-px flex-1 bg-line" />or<span class="h-px flex-1 bg-line" />
     </div>
 
-    <button class="btn-ghost w-full" :disabled="pending" @click="signInWithGoogle">
-      Continue with Google
-    </button>
+    <!-- Product vignette: a believable slice of the inbox, not a stock illustration. -->
+    <div class="hidden lg:block" aria-hidden="true">
+      <div class="rounded-3xl border border-rule bg-card p-8 shadow-sm">
+        <p class="text-xs font-medium tracking-[0.12em] text-ink-soft uppercase">Your inbox</p>
 
-    <p v-if="sent" class="mt-6 rounded-lg border border-ok/30 bg-ok/10 px-3 py-2 text-sm text-ok">
-      Check {{ email }} for the sign-in link.
-    </p>
+        <div class="mt-5 space-y-3">
+          <div class="rounded-xl border border-rule p-4">
+            <div class="flex items-start justify-between gap-3">
+              <p class="text-sm font-medium">Anyone found a decent alternative to [competitor]?</p>
+              <span class="shrink-0 rounded-lg bg-signal/12 px-2 py-0.5 font-mono text-sm text-signal tabular-nums">87</span>
+            </div>
+            <p class="mt-1 text-xs text-ink-soft">r/SaaS · 3h ago · 2 comments</p>
+            <div class="mt-3 flex flex-wrap gap-1.5">
+              <span class="rounded-full border border-rule px-2 py-0.5 text-[11px] text-ink-soft">asking for an alternative</span>
+              <span class="rounded-full border border-rule px-2 py-0.5 text-[11px] text-ink-soft">posted in the last 24h</span>
+            </div>
+          </div>
 
-    <p v-if="error" class="mt-6 rounded-lg border border-signal/30 bg-signal/10 px-3 py-2 text-sm text-signal-soft">
-      {{ error }}
-    </p>
+          <div class="rounded-xl border border-rule p-4 opacity-80">
+            <div class="flex items-start justify-between gap-3">
+              <p class="text-sm font-medium">is [competitor] worth it or should I look elsewhere</p>
+              <span class="shrink-0 rounded-lg bg-panel/5 px-2 py-0.5 font-mono text-sm text-ink-soft tabular-nums">64</span>
+            </div>
+            <p class="mt-1 text-xs text-ink-soft">r/Entrepreneur · 9h ago · 5 comments</p>
+          </div>
+
+          <div class="rounded-xl border border-dashed border-rule p-4">
+            <p class="text-xs font-medium tracking-[0.12em] text-ink-soft uppercase">Draft</p>
+            <p class="mt-2 text-sm leading-relaxed text-ink-soft">
+              depends what you're optimising for. if it's mostly [use case], honestly the free
+              tier of [tool] covers it. disclosure: I work on [brand], happy to answer questions…
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
 export default {
   setup() {
-    useHead({ title: 'Sign in — RedRadar' })
-    return { supabase: useSupabaseClient(), route: useRoute() }
-  },
-
-  data() {
+    useHead({ title: 'Sign in · RedRadar' })
+    const config = useRuntimeConfig()
     return {
-      email: '',
-      pending: false,
-      sent: false,
-      error: '',
+      localMode: config.public.localMode,
+      route: useRoute(),
     }
   },
 
   computed: {
-    // Where to land after the round trip through email / the OAuth provider.
-    redirectTo() {
-      const next = typeof this.route.query.next === 'string' ? this.route.query.next : '/app'
-      return `${window.location.origin}/confirm?next=${encodeURIComponent(next)}`
-    },
-  },
-
-  methods: {
-    async sendLink() {
-      this.pending = true
-      this.error = ''
-      this.sent = false
-
-      const { error } = await this.supabase.auth.signInWithOtp({
-        email: this.email,
-        options: { emailRedirectTo: this.redirectTo },
-      })
-
-      this.pending = false
-      if (error) this.error = error.message
-      else this.sent = true
-    },
-
-    async signInWithGoogle() {
-      this.pending = true
-      this.error = ''
-
-      const { error } = await this.supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: this.redirectTo },
-      })
-
-      if (error) {
-        this.pending = false
-        // Google has to be enabled in the Supabase dashboard first.
-        this.error = error.message
-      }
+    variant() {
+      return this.route.query.v === 'minimal' ? 'minimal' : 'split'
     },
   },
 }

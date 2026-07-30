@@ -8,35 +8,46 @@ export interface DraftInput {
   lead: Pick<Lead, 'title' | 'body' | 'subreddit' | 'url' | 'matched_keyword'>
   /** Optional nudge for a regeneration, e.g. "shorter" or "lead with the pricing". */
   instruction?: string
+  /** The caller's current draft, so a regeneration takes a different angle. */
+  previousDraft?: string
 }
 
-const SYSTEM = `You write Reddit replies on behalf of a brand. Reddit punishes marketing, so
-the reply has to earn its place in the thread on its own merits.
+const SYSTEM = `You draft Reddit comments for someone who works at a brand and is replying
+personally. Whatever you write will be posted under a real account, so it has to read like
+one regular person typing a comment — because that is what it is.
 
-Rules:
-- Answer the person's actual question first. If you can help them without mentioning
-  the brand at all, do that — a reply that solves their problem is worth more than a
-  mention that gets downvoted.
-- Mention the brand only where it is genuinely the right answer, once, in passing, and
-  always disclose the affiliation plainly ("I work on X" / "disclosure: I built X").
-- No marketing voice. No "game-changer", "seamless", "revolutionize", "leverage",
-  "in today's landscape". No exclamation marks. No bulleted feature lists.
-- Sound like one person typing a comment: lowercase is fine, contractions are fine,
-  short paragraphs, no headers, no markdown formatting beyond the occasional link.
-- Acknowledge tradeoffs honestly, including where competitors are the better pick.
-  Being useful about the alternatives is what makes the recommendation credible.
-- Match the length the thread deserves. Most good replies are 2-5 sentences. A detailed
-  technical question can justify more; a quick recommendation request cannot.
-- Never invent features, pricing, or benchmarks. If you don't know, don't claim it.
+Voice:
+- Answer the actual question first, with specifics. Give the advice a knowledgeable
+  stranger would give, including advice that has nothing to do with the brand.
+- Type like a commenter: contractions, plain words, no greeting, no sign-off, no
+  "hope this helps". Starting a sentence lowercase is fine. One or two short paragraphs.
+- Never say how you found the thread. No "saw this in", "came across this post",
+  "stumbled on this". Commenters don't narrate that.
+- Never reuse the brand's tagline or anything that could appear on a landing page.
+  If a sentence sounds like marketing, delete it and say the plain version.
+- No bullet lists, no headers, no em dashes, no exclamation marks.
 
-Return only the reply text. No preamble, no "Here's a draft:", no surrounding quotes.`
+The brand:
+- Name it at most once, and only when the thread is genuinely asking for what it does.
+  Plenty of good replies never mention it. That is fine and often better.
+- When you do name it, frame it as one option next to an honest alternative or a real
+  limitation. "x worked for me but it's overkill if you just need y" lands better than
+  any pitch.
+- If the brand is named, work a short affiliation note into a sentence in passing:
+  "i work on X so i'm biased" or "caveat that i'm on the X team". One casual clause,
+  not a formal disclosure line. If the brand is not named, say nothing about work.
+- Never invent features, pricing, or results. Unsure means leave it out.
+
+If a previous draft is provided, write a genuinely different take: different opening,
+different emphasis, different length. Do not paraphrase the previous draft.
+
+Return only the comment text. No preamble, no quotes around it.`
 
 function buildPrompt(input: DraftInput) {
-  const { brand, lead, instruction } = input
+  const { brand, lead, instruction, previousDraft } = input
 
   const brandLines = [
     `Name: ${brand.name}`,
-    brand.tagline ? `One-liner: ${brand.tagline}` : null,
     brand.description ? `What it does: ${brand.description}` : null,
     brand.voice ? `Voice notes: ${brand.voice}` : null,
     brand.competitors?.length ? `Competitors: ${brand.competitors.join(', ')}` : null,
@@ -46,33 +57,50 @@ function buildPrompt(input: DraftInput) {
     `Subreddit: r/${lead.subreddit ?? 'unknown'}`,
     `Title: ${lead.title ?? '(no title)'}`,
     lead.body ? `Body:\n${lead.body.slice(0, 4000)}` : 'Body: (link post, no text)',
-    lead.matched_keyword ? `Matched keyword: ${lead.matched_keyword}` : null,
   ].filter(Boolean).join('\n')
 
   return [
     `<brand>\n${brandLines}\n</brand>`,
     `<thread>\n${threadLines}\n</thread>`,
+    previousDraft ? `<previous_draft>\n${previousDraft.slice(0, 2000)}\n</previous_draft>` : null,
     instruction ? `<instruction>\n${instruction}\n</instruction>` : null,
-    'Write the reply.',
+    'Write the comment.',
   ].filter(Boolean).join('\n\n')
 }
 
-export async function generateReplyDraft(input: DraftInput, apiKey: string) {
-  const client = new Anthropic({ apiKey })
+export async function generateReplyDraft(input: DraftInput, apiKey?: string) {
+  if (!apiKey) {
+    // No canned fallback: fake drafts posing as AI output is how nobody notices
+    // the pipeline is broken. Fail loudly instead.
+    throw createError({
+      statusCode: 503,
+      statusMessage: 'Set ANTHROPIC_API_KEY to generate drafts.',
+    })
+  }
 
-  const response = await client.beta.messages.create({
-    model: MODEL,
-    // Thinking is on by default on Opus 5 and counts against max_tokens, so the
-    // budget is much larger than the few hundred tokens the reply itself needs.
-    max_tokens: 16000,
-    system: SYSTEM,
-    output_config: { effort: 'medium' },
-    // Route safety declines to Anthropic's recommended fallback instead of
-    // failing the request.
-    betas: ['server-side-fallback-2026-07-01'],
-    fallbacks: 'default',
-    messages: [{ role: 'user', content: buildPrompt(input) }],
-  })
+  const client = new Anthropic({ apiKey, timeout: 120_000 })
+
+  let response: Anthropic.Beta.BetaMessage
+  try {
+    response = await client.beta.messages.create({
+      model: MODEL,
+      // Thinking is on by default on Opus 5 and shares this budget with the
+      // reply text, so it is far larger than the comment itself needs.
+      max_tokens: 16000,
+      system: SYSTEM,
+      output_config: { effort: 'medium' },
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      messages: [{ role: 'user', content: buildPrompt(input) }],
+    })
+  } catch (error) {
+    // Surface the real reason (bad key, model access, network) to the UI
+    // instead of quietly shipping a template.
+    throw createError({
+      statusCode: 502,
+      statusMessage: `Draft generation failed: ${(error as Error).message}`,
+    })
+  }
 
   if (response.stop_reason === 'refusal') {
     throw createError({

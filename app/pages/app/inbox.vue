@@ -17,6 +17,23 @@
       {{ error }}
     </p>
 
+    <!-- Carried over from the scan that redirected here, so the count isn't lost. -->
+    <div
+      v-if="lastScan"
+      class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm"
+    >
+      <span>
+        <span class="font-mono text-signal">{{ lastScan.inserted }}</span> new
+        <span v-if="lastScan.updated" class="text-mute">
+          · <span class="font-mono">{{ lastScan.updated }}</span> refreshed
+        </span>
+        <span class="text-mute">
+          · {{ lastScan.scanned }} threads across {{ lastScan.keywords }} keywords
+        </span>
+      </span>
+      <button class="btn-quiet" @click="lastScan = null">Dismiss</button>
+    </div>
+
     <div v-if="activeCampaignId" class="flex flex-wrap items-center gap-1.5">
       <button
         v-for="tab in tabs"
@@ -59,9 +76,14 @@ import { LEAD_STATUSES } from '#shared/types'
 
 export default {
   setup() {
-    useHead({ title: 'Inbox — RedRadar' })
+    useHead({ title: 'Inbox · RedRadar' })
+    const config = useRuntimeConfig()
     const workspace = useWorkspace()
-    return { supabase: useSupabaseClient(), ...workspace }
+    return {
+      localMode: config.public.localMode,
+      lastScan: useState('rr:lastScan', () => null),
+      ...workspace,
+    }
   },
 
   data() {
@@ -115,14 +137,35 @@ export default {
     async loadLeads() {
       this.loading = true
 
-      const { data, error } = await this.supabase
-        .from('leads')
-        .select('*')
-        .eq('campaign_id', this.activeCampaignId)
-        .order('score', { ascending: false })
+      try {
+        if (this.localMode) {
+          const data = await $fetch('/api/workspace', {
+            query: { leads: '1', campaignId: this.activeCampaignId },
+          })
+          this.leads = data.leads ?? []
+        } else {
+          let { data, error } = await this.supabase
+            .from('leads')
+            .select('*, assigned:profiles!leads_assigned_to_fkey(id, display_name), lead_drafts(user_id, body, updated_at, profiles(display_name))')
+            .eq('campaign_id', this.activeCampaignId)
+            .order('score', { ascending: false })
 
-      if (error) this.error = error.message
-      else this.leads = data ?? []
+          // Before migration 0002, profiles/lead_drafts don't exist and the
+          // embed 400s. Fall back to a plain read so the inbox still works.
+          if (error && /relationship|schema cache/i.test(error.message)) {
+            ({ data, error } = await this.supabase
+              .from('leads')
+              .select('*')
+              .eq('campaign_id', this.activeCampaignId)
+              .order('score', { ascending: false }))
+          }
+
+          if (error) this.error = error.message
+          else this.leads = data ?? []
+        }
+      } catch (e) {
+        this.error = e.data?.statusMessage || e.message
+      }
 
       this.loading = false
     },

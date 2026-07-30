@@ -11,8 +11,10 @@ export function useWorkspace() {
   const campaigns = useState<Campaign[]>('rr:campaigns', () => [])
   const activeCampaignId = useState<string | null>('rr:campaign', () => null)
   const ready = useState<boolean>('rr:ready', () => false)
+  const localMode = useState<boolean>('rr:local', () => false)
 
-  const supabase = useSupabaseClient()
+  const config = useRuntimeConfig()
+  const supabase = config.public.localMode ? null : useSupabaseClient()
 
   const activeBrand = computed(() => brands.value[0] ?? null)
   const activeCampaign = computed(
@@ -22,7 +24,20 @@ export function useWorkspace() {
   async function load(force = false) {
     if (ready.value && !force) return
 
-    const { data: memberships, error } = await supabase
+    if (config.public.localMode) {
+      localMode.value = true
+      const data = await $fetch<{ org: Org | null, brands: Brand[], campaigns: Campaign[] }>('/api/workspace')
+      org.value = data.org
+      brands.value = data.brands ?? []
+      campaigns.value = data.campaigns ?? []
+      if (!activeCampaignId.value || !campaigns.value.some(c => c.id === activeCampaignId.value)) {
+        activeCampaignId.value = campaigns.value[0]?.id ?? null
+      }
+      ready.value = true
+      return
+    }
+
+    const { data: memberships, error } = await supabase!
       .from('org_members')
       .select('orgs(id, name, slug, created_at)')
       .limit(1)
@@ -40,7 +55,7 @@ export function useWorkspace() {
       return
     }
 
-    const { data: brandRows } = await supabase
+    const { data: brandRows } = await supabase!
       .from('brands')
       .select('*')
       .eq('org_id', org.value.id)
@@ -49,7 +64,7 @@ export function useWorkspace() {
     brands.value = (brandRows ?? []) as Brand[]
 
     if (brands.value.length) {
-      const { data: campaignRows } = await supabase
+      const { data: campaignRows } = await supabase!
         .from('campaigns')
         .select('*')
         .in('brand_id', brands.value.map(b => b.id))
@@ -67,9 +82,14 @@ export function useWorkspace() {
     ready.value = true
   }
 
-  /** Org + first membership are created together by a SECURITY DEFINER function. */
   async function createOrg(name: string) {
-    const { error } = await supabase.rpc('create_org', { p_name: name })
+    if (config.public.localMode) {
+      await $fetch('/api/workspace', { method: 'POST', body: { action: 'create_org', name } })
+      await load(true)
+      return
+    }
+    // Untyped Database (supabase.types is off) types rpc args as undefined.
+    const { error } = await (supabase as any).rpc('create_org', { p_name: name })
     if (error) throw new Error(error.message)
     await load(true)
   }
@@ -82,7 +102,9 @@ export function useWorkspace() {
     activeBrand,
     activeCampaign,
     ready,
+    localMode,
     load,
     createOrg,
+    supabase,
   }
 }

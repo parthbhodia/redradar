@@ -1,0 +1,121 @@
+import Anthropic from '@anthropic-ai/sdk'
+
+const MODEL = 'claude-opus-5'
+
+export interface BrandSuggestInput {
+  name: string
+  /** Anything the user already knows: a URL, a sentence, pasted marketing copy. */
+  hint?: string
+}
+
+export interface BrandSuggestion {
+  tagline: string
+  description: string
+  voice: string
+  competitors: string[]
+  /** Anything inferred rather than given, so the user can correct it. */
+  assumptions: string[]
+}
+
+const SCHEMA = {
+  type: 'object',
+  properties: {
+    tagline: {
+      type: 'string',
+      description: 'One plain sentence naming the problem solved. No hype, no trailing period needed.',
+    },
+    description: {
+      type: 'string',
+      description: 'What it does and who it is for. Two short paragraphs at most.',
+    },
+    voice: {
+      type: 'string',
+      description: 'How replies should sound on Reddit, including when to admit it is not the right fit.',
+    },
+    competitors: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Product names as people actually type them on Reddit. 5-9 entries.',
+    },
+    assumptions: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Claims inferred rather than supplied. Empty if everything came from the input.',
+    },
+  },
+  required: ['tagline', 'description', 'voice', 'competitors', 'assumptions'],
+  additionalProperties: false,
+} as const
+
+const SYSTEM = `You write brand profiles for RedRadar, a tool that finds high-intent Reddit
+threads and drafts replies. This profile is not marketing copy — it is the context an LLM
+uses to write Reddit comments, and it is matched against thread text to score leads. Write
+for that job.
+
+Rules that matter more than polish:
+
+- NEVER invent features, pricing, integrations, funding, customer counts, or metrics. If
+  the input doesn't establish something, leave it out. A vague-but-true profile produces
+  good replies; a specific-but-false one produces replies that get the brand called out.
+- If you don't recognise the brand, write from the hint alone and keep claims general.
+  Record every inference in "assumptions" so the user can correct it.
+- "tagline" states the problem the product solves, in the customer's words — not a slogan.
+- "description" covers what it does and who it's for. Concrete over clever.
+- "voice" is instructions for the reply writer: tone, what to avoid, and the conditions
+  under which it should tell someone the product is NOT the right fit. Include any domain
+  myths that would get a reply downvoted if repeated.
+- "competitors" are the names people actually say in the relevant subreddits, including
+  ones mentioned as complaints — those are good threads to be in. Not market leaders by
+  revenue. These strings get substring-matched against thread text, so use the common
+  spelling and no legal suffixes.`
+
+export async function suggestBrandProfile(
+  input: BrandSuggestInput,
+  apiKey: string,
+): Promise<BrandSuggestion> {
+  const client = new Anthropic({ apiKey })
+
+  const prompt = [
+    `Brand name: ${input.name}`,
+    input.hint?.trim()
+      ? `What the user told us:\n${input.hint.trim()}`
+      : 'The user gave no additional detail. Infer only what the name reasonably supports, and list those inferences.',
+    'Write the profile.',
+  ].join('\n\n')
+
+  const response = await client.beta.messages.create({
+    model: MODEL,
+    max_tokens: 16000,
+    system: SYSTEM,
+    output_config: {
+      effort: 'medium',
+      format: { type: 'json_schema', schema: SCHEMA },
+    },
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
+    messages: [{ role: 'user', content: prompt }],
+  })
+
+  if (response.stop_reason === 'refusal') {
+    throw createError({
+      statusCode: 422,
+      statusMessage: 'The model declined to write a profile for this brand.',
+    })
+  }
+
+  const text = response.content
+    .filter(block => block.type === 'text')
+    .map(block => block.text)
+    .join('')
+    .trim()
+
+  if (!text) {
+    throw createError({ statusCode: 502, statusMessage: 'Empty suggestion returned.' })
+  }
+
+  try {
+    return JSON.parse(text) as BrandSuggestion
+  } catch {
+    throw createError({ statusCode: 502, statusMessage: 'Could not parse the suggestion.' })
+  }
+}

@@ -29,44 +29,37 @@ Node 20.19+ (an `.nvmrc` pins 22).
 nvm use && pnpm install
 ```
 
-### 2. Create a Supabase project
-
-RedRadar uses **its own** Supabase project — it does not share a database with anything else.
-Create one at [supabase.com/dashboard](https://supabase.com/dashboard), then apply the schema:
-
-- **Dashboard:** paste `supabase/migrations/0001_init.sql` into the SQL Editor and run it.
-- **CLI:** `supabase link --project-ref <ref> && supabase db push`
-
-This creates `orgs`, `org_members`, `brands`, `campaigns`, `keywords`, and `leads`, plus
-RLS policies that scope every row to the caller's org membership and a `create_org()`
-function that makes an org and its first membership atomically.
-
-### 3. Configure environment
+### 2. Local dogfood (no Supabase required)
 
 ```bash
 cp .env.example .env
+# keep REDRADAR_LOCAL=1
+pnpm seed:cueful   # Cueful brand + keywords + live Reddit scan via OpenCLI
+pnpm dev --port 3010
 ```
+
+Open http://localhost:3010/login, continue as `dogfood@cueful.bio`, then open **Inbox**.
+
+Local mode stores data in `data/redradar.sqlite`. Discovery prefers
+`opencli reddit search` (Chrome bridge), then public Reddit JSON.
+
+### 3. Cloud / multi-tenant Supabase
+
+Unset `REDRADAR_LOCAL` and point env at **RedRadar's own** Supabase project
+(not Cueful's). Create one at [supabase.com/dashboard](https://supabase.com/dashboard),
+then apply `supabase/migrations/0001_init.sql` (SQL Editor or `supabase db push`).
 
 | Variable | Where to get it | Required |
 | --- | --- | --- |
-| `SUPABASE_URL` | Supabase → Project Settings → API | yes |
-| `SUPABASE_KEY` | the anon / publishable key | yes |
-| `NUXT_SUPABASE_SECRET_KEY` | the secret / service-role key — server-only, used by `/api/discover` to upsert past RLS | yes |
-| `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com) — used by `/api/draft` | for drafts |
-| `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | a "script" app at [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) | optional |
+| `SUPABASE_URL` | Supabase → Project Settings → API | cloud |
+| `SUPABASE_KEY` | the anon / publishable key | cloud |
+| `NUXT_SUPABASE_SECRET_KEY` | service-role key — server-only, used by `/api/discover` | cloud |
+| `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com) | drafts (template fallback if unset) |
+| `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) | optional |
 
-Without Reddit credentials, discovery falls back to the public `www.reddit.com` JSON
-endpoints. That works locally but is rate-limited hard and blocked from many hosting
-providers — add credentials before deploying.
+In Supabase → Authentication → URL Configuration, allow `http://localhost:3010/confirm`.
 
-### 4. Auth redirect
-
-In Supabase → Authentication → URL Configuration, add `http://localhost:3000/confirm`
-(and your production equivalent) to the redirect allow-list. Magic links work out of the
-box; **Continue with Google** additionally needs the Google provider enabled under
-Authentication → Providers.
-
-### 5. Run
+### 4. Run (cloud)
 
 ```bash
 pnpm dev

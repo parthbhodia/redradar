@@ -9,9 +9,14 @@ export interface ScoreResult {
 const INTENT_PATTERNS: Array<[RegExp, string]> = [
   [/\balternatives?\s+to\b|\balternative\b/i, 'looking for an alternative'],
   [/\brecommend(ations?|ing)?\b|\bsuggestions?\b/i, 'asking for recommendations'],
-  [/\blooking for\b|\bin search of\b|\bneed a\b/i, 'stated need'],
+  // `need a` on its own matched any expressed need ("I need a logical landing
+  // spot"), so it now has to be a need for a *thing you'd shop for*.
+  [/\blooking for\b|\bin search of\b|\bneed (a |an )?(good |free |decent |better )?(tool|app|service|software|alternative|option|recommendation)/i, 'stated need'],
   [/\bbest\b.*\b(for|to)\b/i, 'best-X-for query'],
-  [/\bvs\.?\b|\bcompared? to\b|\bor\b.*\?/i, 'comparison'],
+  // `or ... ?` used to live here. It matched any question containing the word
+  // "or" — "Any tips or fixes?", "Should I Stay Put or Make a Move?" — and was
+  // the single largest source of false positives.
+  [/\bvs\.?\b|\bversus\b|\bcompared? to\b/i, 'comparison'],
   [/\bswitch(ing|ed)? (from|to)\b|\bmigrat(e|ing) (from|to)\b/i, 'switching tools'],
   [/\bworth it\b|\bany good\b|\banyone use[ds]?\b/i, 'evaluating options'],
   [/\bhelp me (find|choose|pick)\b/i, 'explicit help request'],
@@ -26,6 +31,9 @@ const NEGATIVE_PATTERNS: Array<[RegExp, string, number]> = [
 ]
 
 const BOT_AUTHORS = new Set(['automoderator', '[deleted]'])
+
+/** Ceiling for threads that never actually matched the keyword. */
+const WEAK_MATCH_CAP = 20
 
 function tokenize(phrase: string) {
   return phrase
@@ -55,23 +63,44 @@ export function scoreLead(post: RedditPost, phrase: string, brand?: Pick<Brand, 
   const needle = phrase.trim().toLowerCase()
 
   // --- keyword match -------------------------------------------------------
+  // Tracked as a strength, not just points: everything else in this function is
+  // circumstantial, and circumstantial signals must not be able to promote a
+  // thread that isn't on topic. See the cap at the end.
+  let matchStrength: 'strong' | 'partial' | 'weak' = 'weak'
+
   if (needle && title.toLowerCase().includes(needle)) {
     score += 35
+    matchStrength = 'strong'
     signals.push(`exact phrase in title: "${phrase}"`)
   } else if (needle && body.toLowerCase().includes(needle)) {
     score += 18
+    matchStrength = 'strong'
     signals.push(`exact phrase in body: "${phrase}"`)
   } else {
     const tokens = tokenize(phrase)
     if (tokens.length) {
-      const inTitle = tokens.filter(t => title.toLowerCase().includes(t)).length
+      const lowerTitle = title.toLowerCase()
+      const inTitle = tokens.filter(t => lowerTitle.includes(t)).length
       const ratio = inTitle / tokens.length
-      if (ratio === 1) {
+
+      if (ratio === 1 && tokens.length >= 2) {
         score += 20
+        matchStrength = 'strong'
         signals.push('all keyword terms in title')
-      } else if (ratio >= 0.5) {
+      } else if (ratio === 1) {
+        // Only one token survived tokenising — e.g. "rezi vs" reduces to "rezi",
+        // so any thread naming the brand would otherwise read as a full match.
         score += 10
+        matchStrength = 'partial'
+        signals.push('single keyword term matched')
+      } else if (inTitle >= 2 && ratio >= 0.5) {
+        // Two or more terms. A single hit is never enough — half of "ATS resume"
+        // is "resume", which is also an ordinary English verb.
+        score += 10
+        matchStrength = 'partial'
         signals.push('partial keyword match in title')
+      } else if (inTitle === 1) {
+        signals.push('only one keyword term matched')
       } else {
         signals.push('weak keyword match')
       }
@@ -159,6 +188,13 @@ export function scoreLead(post: RedditPost, phrase: string, brand?: Pick<Brand, 
   if (BOT_AUTHORS.has(post.author.toLowerCase())) {
     score = 0
     signals.push('penalty: bot or deleted author')
+  }
+
+  // Recency, a quiet thread and a question mark total 31 on their own. Without
+  // this, an off-topic post lands mid-band and looks like a real lead.
+  if (matchStrength === 'weak' && score > WEAK_MATCH_CAP) {
+    score = WEAK_MATCH_CAP
+    signals.push(`capped at ${WEAK_MATCH_CAP} — the keyword didn't really match`)
   }
 
   return {
