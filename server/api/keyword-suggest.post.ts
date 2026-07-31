@@ -8,9 +8,9 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'campaignId is required.' })
   }
 
-  const { anthropicApiKey } = useRuntimeConfig(event)
-  if (!anthropicApiKey) {
-    throw createError({ statusCode: 503, statusMessage: 'Set ANTHROPIC_API_KEY to use AI suggestions.' })
+  const { qwenApiKey } = useRuntimeConfig(event)
+  if (!qwenApiKey) {
+    throw createError({ statusCode: 503, statusMessage: 'Set QWEN_API_KEY to use AI suggestions.' })
   }
 
   const { client, campaign, brand, local } = await requireCampaign(event, body.campaignId)
@@ -30,6 +30,6 @@ export default defineEventHandler(async (event) => {
     existing = (data ?? []).map((row: { phrase: string }) => row.phrase)
   }
 
-  const keywords = await suggestKeywords({ brand, existing }, anthropicApiKey)
+  const keywords = await suggestKeywords({ brand, existing }, qwenApiKey)
   return { keywords }
 })

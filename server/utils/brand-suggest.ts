@@ -1,6 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk'
-
-const MODEL = 'claude-opus-5'
+const MODEL = 'qwen-turbo'
+const QWEN_ENDPOINT = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
 
 export interface BrandSuggestInput {
   name: string
@@ -74,49 +73,54 @@ export async function suggestBrandProfile(
   input: BrandSuggestInput,
   apiKey: string,
 ): Promise<BrandSuggestion> {
-  const client = new Anthropic({ apiKey })
-
   const prompt = [
     `Brand name: ${input.name}`,
     input.hint?.trim()
       ? `What the user told us:\n${input.hint.trim()}`
       : 'The user gave no additional detail. Infer only what the name reasonably supports, and list those inferences.',
-    'Write the profile.',
+    'Write the profile as valid JSON.',
   ].join('\n\n')
 
-  const response = await client.beta.messages.create({
-    model: MODEL,
-    max_tokens: 16000,
-    system: SYSTEM,
-    output_config: {
-      effort: 'medium',
-      format: { type: 'json_schema', schema: SCHEMA },
-    },
-    betas: ['server-side-fallback-2026-07-01'],
-    fallbacks: 'default',
-    messages: [{ role: 'user', content: prompt }],
-  })
-
-  if (response.stop_reason === 'refusal') {
-    throw createError({
-      statusCode: 422,
-      statusMessage: 'The model declined to write a profile for this brand.',
-    })
-  }
-
-  const text = response.content
-    .filter(block => block.type === 'text')
-    .map(block => block.text)
-    .join('')
-    .trim()
-
-  if (!text) {
-    throw createError({ statusCode: 502, statusMessage: 'Empty suggestion returned.' })
-  }
-
   try {
-    return JSON.parse(text) as BrandSuggestion
-  } catch {
-    throw createError({ statusCode: 502, statusMessage: 'Could not parse the suggestion.' })
+    const response = await $fetch(QWEN_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: {
+        model: MODEL,
+        max_tokens: 2000,
+        temperature: 0.7,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: SYSTEM },
+          { role: 'user', content: prompt },
+        ],
+      },
+      timeout: 120_000,
+    }) as {
+      choices: Array<{ message: { content: string } }>
+    }
+
+    if (!response.choices?.[0]?.message?.content) {
+      throw createError({
+        statusCode: 502,
+        statusMessage: 'Empty suggestion returned.',
+      })
+    }
+
+    const text = response.choices[0].message.content.trim()
+
+    try {
+      return JSON.parse(text) as BrandSuggestion
+    } catch {
+      throw createError({ statusCode: 502, statusMessage: 'Could not parse the suggestion.' })
+    }
+  } catch (error) {
+    throw createError({
+      statusCode: 502,
+      statusMessage: `Brand profile generation failed: ${(error as Error).message}`,
+    })
   }
 }

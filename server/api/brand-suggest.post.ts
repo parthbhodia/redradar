@@ -9,11 +9,11 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'A brand name is required.' })
   }
 
-  const { anthropicApiKey } = useRuntimeConfig(event)
-  if (!anthropicApiKey) {
+  const { qwenApiKey } = useRuntimeConfig(event)
+  if (!qwenApiKey) {
     throw createError({
       statusCode: 503,
-      statusMessage: 'Set ANTHROPIC_API_KEY to use AI fill.',
+      statusMessage: 'Set QWEN_API_KEY to use AI fill.',
     })
   }
 
@@ -21,5 +21,5 @@ export default defineEventHandler(async (event) => {
   // suggestion itself touches no rows — nothing to authorize beyond that.
   await requireUserClient(event)
 
-  return await suggestBrandProfile({ name, hint: body?.hint }, anthropicApiKey)
+  return await suggestBrandProfile({ name, hint: body?.hint }, qwenApiKey)
 })

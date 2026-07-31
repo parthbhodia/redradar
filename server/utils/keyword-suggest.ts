@@ -1,7 +1,7 @@
-import Anthropic from '@anthropic-ai/sdk'
 import type { Brand } from '#shared/types'
 
-const MODEL = 'claude-opus-5'
+const MODEL = 'qwen-turbo'
+const QWEN_ENDPOINT = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
 
 export interface KeywordSuggestInput {
   brand: Pick<Brand, 'name' | 'tagline' | 'description' | 'competitors'>
@@ -74,8 +74,6 @@ export async function suggestKeywords(
   input: KeywordSuggestInput,
   apiKey: string,
 ): Promise<KeywordIdea[]> {
-  const client = new Anthropic({ apiKey })
-
   const brandLines = [
     `Name: ${input.brand.name}`,
     input.brand.tagline ? `One-liner: ${input.brand.tagline}` : null,
@@ -88,50 +86,60 @@ export async function suggestKeywords(
     input.existing.length
       ? `<already_tracked>\n${input.existing.join('\n')}\n</already_tracked>`
       : '<already_tracked>\n(none yet)\n</already_tracked>',
-    'Propose the keywords.',
+    'Propose the keywords as valid JSON.',
   ].join('\n\n')
 
-  const response = await client.beta.messages.create({
-    model: MODEL,
-    max_tokens: 16000,
-    system: SYSTEM,
-    output_config: {
-      effort: 'medium',
-      format: { type: 'json_schema', schema: SCHEMA },
-    },
-    betas: ['server-side-fallback-2026-07-01'],
-    fallbacks: 'default',
-    messages: [{ role: 'user', content: prompt }],
-  })
-
-  if (response.stop_reason === 'refusal') {
-    throw createError({ statusCode: 422, statusMessage: 'The model declined this request.' })
-  }
-
-  const text = response.content
-    .filter(block => block.type === 'text')
-    .map(block => block.text)
-    .join('')
-    .trim()
-
-  if (!text) {
-    throw createError({ statusCode: 502, statusMessage: 'Empty suggestion returned.' })
-  }
-
-  let parsed: { keywords?: KeywordIdea[] }
   try {
-    parsed = JSON.parse(text)
-  } catch {
-    throw createError({ statusCode: 502, statusMessage: 'Could not parse the suggestions.' })
-  }
+    const response = await $fetch(QWEN_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: {
+        model: MODEL,
+        max_tokens: 2000,
+        temperature: 0.7,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: SYSTEM },
+          { role: 'user', content: prompt },
+        ],
+      },
+      timeout: 120_000,
+    }) as {
+      choices: Array<{ message: { content: string } }>
+    }
 
-  // Belt-and-braces dedupe — the model is told to skip these, but a near-miss
-  // would otherwise surface an Add button that silently conflicts on insert.
-  const seen = new Set(input.existing.map(p => p.trim().toLowerCase()))
-  return (parsed.keywords ?? []).filter((idea) => {
-    const key = idea.phrase?.trim().toLowerCase()
-    if (!key || seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
+    if (!response.choices?.[0]?.message?.content) {
+      throw createError({
+        statusCode: 502,
+        statusMessage: 'Empty suggestion returned.',
+      })
+    }
+
+    const text = response.choices[0].message.content.trim()
+
+    let parsed: { keywords?: KeywordIdea[] }
+    try {
+      parsed = JSON.parse(text)
+    } catch {
+      throw createError({ statusCode: 502, statusMessage: 'Could not parse the suggestions.' })
+    }
+
+    // Belt-and-braces dedupe — the model is told to skip these, but a near-miss
+    // would otherwise surface an Add button that silently conflicts on insert.
+    const seen = new Set(input.existing.map(p => p.trim().toLowerCase()))
+    return (parsed.keywords ?? []).filter((idea) => {
+      const key = idea.phrase?.trim().toLowerCase()
+      if (!key || seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  } catch (error) {
+    throw createError({
+      statusCode: 502,
+      statusMessage: `Keyword suggestion failed: ${(error as Error).message}`,
+    })
+  }
 }

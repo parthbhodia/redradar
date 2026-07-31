@@ -54,7 +54,7 @@ then apply `supabase/migrations/0001_init.sql` (SQL Editor or `supabase db push`
 | `SUPABASE_URL` | Supabase → Project Settings → API | cloud |
 | `SUPABASE_KEY` | the anon / publishable key | cloud |
 | `NUXT_SUPABASE_SECRET_KEY` | service-role key — server-only, used by `/api/discover` | cloud |
-| `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com) | drafts (template fallback if unset) |
+| `QWEN_API_KEY` | [Alibaba DashScope console](https://dashscope.console.aliyun.com) | drafts, brand setup, keyword suggestions |
 | `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) | optional |
 
 In Supabase → Authentication → URL Configuration, allow `http://localhost:3010/confirm`.
