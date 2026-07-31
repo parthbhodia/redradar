@@ -9,9 +9,15 @@
             RedIntelli · Reddit lead discovery
           </p>
 
+          <!--
+            The product name belongs in the h1, not only in the eyebrow above
+            it. Google's OAuth review checks the homepage for an app name
+            matching the consent screen, and the primary heading is the first
+            place a human reviewer looks.
+          -->
           <h1 class="mt-7 text-5xl leading-[1.03] font-semibold tracking-tight text-balance sm:text-6xl">
-            People are asking
-            <span class="accent-line mt-1 block font-normal">for what you sell.</span>
+            RedIntelli finds people
+            <span class="accent-line mt-1 block font-normal">asking for what you sell.</span>
           </h1>
 
           <p class="mt-6 max-w-lg text-lg leading-relaxed text-ink-soft">
