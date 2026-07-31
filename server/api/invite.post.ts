@@ -1,3 +1,4 @@
+import { MAX_ORG_MEMBERS } from '#shared/limits'
 import { requireUserClient } from '../utils/guard'
 
 /**
@@ -40,6 +41,25 @@ export default defineEventHandler(async (event) => {
   // supabase.types is disabled project-wide, so cast once instead of fighting
   // `never` on every query.
   const admin = serverSupabaseServiceRole(event) as import('@supabase/supabase-js').SupabaseClient<any>
+
+  // Checked before the invite is sent, not after: creating the auth user first
+  // and then refusing the seat would leave a stranded account and an email the
+  // recipient can't act on.
+  const { count: seatsUsed, error: seatError } = await admin
+    .from('org_members')
+    .select('user_id', { count: 'exact', head: true })
+    .eq('org_id', mine.org_id)
+
+  if (seatError) {
+    throw createError({ statusCode: 500, statusMessage: seatError.message })
+  }
+
+  if ((seatsUsed ?? 0) >= MAX_ORG_MEMBERS) {
+    throw createError({
+      statusCode: 409,
+      statusMessage: `This workspace is full — ${MAX_ORG_MEMBERS} members is the limit.`,
+    })
+  }
 
   // Existing account? profiles mirrors auth.users, and unlike the auth schema
   // it's queryable, so we look the user up there.

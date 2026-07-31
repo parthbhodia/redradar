@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { DAILY_SCAN_LIMIT } from '#shared/limits'
 
-/** Manual scans a non-admin account may run per UTC day. */
-export const DAILY_SCAN_LIMIT = 3
+export { DAILY_SCAN_LIMIT }
 
 export interface ScanQuota {
   limit: number

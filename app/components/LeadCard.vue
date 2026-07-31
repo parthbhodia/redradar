@@ -156,7 +156,7 @@ export default {
     return {
       localMode,
       supabase: localMode ? null : useSupabaseClient(),
-      me: localMode ? ref(null) : useSupabaseUser(),
+      me: useMe(),
     }
   },
 

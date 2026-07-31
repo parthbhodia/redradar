@@ -252,7 +252,12 @@
 
       <!-- 6. Team -->
       <section v-if="!localMode" class="card">
-        <h2 class="mb-1 font-medium">Team</h2>
+        <div class="mb-1 flex items-baseline justify-between gap-3">
+          <h2 class="font-medium">Team</h2>
+          <span v-if="members.length" class="text-xs" :class="workspaceFull ? 'text-warn' : 'text-mute'">
+            <span class="font-mono">{{ members.length }}</span> of {{ maxMembers }} seats
+          </span>
+        </div>
         <p class="mb-4 text-sm text-mute">
           Everyone here shares this workspace: same campaigns, same inbox.
         </p>
@@ -271,7 +276,10 @@
           </li>
         </ul>
 
-        <form v-if="canInvite" class="flex flex-col gap-2 sm:flex-row" @submit.prevent="invite">
+        <p v-if="workspaceFull" class="text-xs text-mute">
+          This workspace is full. {{ maxMembers }} members is the limit.
+        </p>
+        <form v-else-if="canInvite" class="flex flex-col gap-2 sm:flex-row" @submit.prevent="invite">
           <input
             v-model="inviteEmail"
             class="input"
@@ -297,6 +305,8 @@
 </template>
 
 <script>
+import { MAX_ORG_MEMBERS } from '#shared/limits'
+
 export default {
   setup() {
     useHead({ title: 'Setup · RedIntelli' })
@@ -307,7 +317,7 @@ export default {
     const { push: toast } = useToasts()
     return {
       localMode: config.public.localMode,
-      me: config.public.localMode ? ref(null) : useSupabaseUser(),
+      me: useMe(),
       // Survives the hop to the inbox so the scan result isn't lost on navigate.
       lastScan: useState('rr:lastScan', () => null),
       quota,
@@ -316,6 +326,7 @@ export default {
       markQuotaExhausted: markExhausted,
       quotaResetsInFn: resetsIn,
       toast,
+      maxMembers: MAX_ORG_MEMBERS,
       ...workspace,
     }
   },
@@ -352,6 +363,10 @@ export default {
       const meId = this.me?.id
       const mine = this.members.find(m => m.user_id === meId)
       return ['owner', 'admin'].includes(mine?.role)
+    },
+
+    workspaceFull() {
+      return this.members.length >= this.maxMembers
     },
   },
 
@@ -434,6 +449,10 @@ export default {
         await this.loadMembers()
       } catch (e) {
         this.error = e.data?.statusMessage || e.message
+        this.toast('Could not send the invite.', { tone: 'error', detail: this.error })
+        // A full workspace usually means our seat count was stale — someone
+        // else invited while this page sat open. Re-read so the form hides.
+        if (e.statusCode === 409 || e.response?.status === 409) await this.loadMembers()
       } finally {
         this.inviting = false
       }
