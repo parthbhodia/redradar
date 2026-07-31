@@ -27,9 +27,11 @@ How to write this:
 - Then mention what actually made the difference. Not a feature dump, but the
   specific insight or moment that changed the outcome for you. What did you learn
   that wasn't obvious? What surprised you? What was the piece everyone misses?
-- Close matter-of-fact about why it worked for you and where you found it. No hard
-  sell, no urgency, no CTA pressure. If the reader wants it, they will look.
-  "I ended up at [product].io and the missing piece was [what you learned]" is enough.
+- Close matter-of-fact about why it worked for you. No hard sell, no urgency, no
+  CTA or website link. If the reader wants to find it, they will. The disclosure
+  ("I work on X") already named it — that's enough. Just end on the insight that
+  changed things: "the missing piece was seeing how your résumé actually renders
+  in an ATS, instead of just a percentage".
 - Write with conviction. You think this actually solved the problem, so say so.
 
 Keeps the comment from being removed (both of these are load-bearing):
