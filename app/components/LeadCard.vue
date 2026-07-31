@@ -77,10 +77,15 @@
       <textarea
         v-model="draft"
         class="input min-h-28 bg-panel"
+        :class="placeholders.length ? 'border-warn/50 focus:border-warn' : ''"
         :readonly="locked"
         placeholder="No draft yet. Hit Generate."
       />
 
+      <p v-if="placeholders.length" class="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-warn">
+        Fill in before posting:
+        <span v-for="ph in placeholders" :key="ph" class="rounded bg-warn/15 px-1.5 py-0.5 font-mono">{{ ph }}</span>
+      </p>
       <p v-if="otherDrafters.length" class="mt-2 text-xs text-mute">
         Also drafting: {{ otherDrafters.join(', ') }}
       </p>
@@ -218,6 +223,13 @@ export default {
 
     dirty() {
       return this.draft !== this.savedDraft
+    },
+
+    // Bracketed numbers the model couldn't know ("[X]% more callbacks") and
+    // left for whoever posts to fill in. Easy to miss inside a wall of text,
+    // so the textarea gets a warning ring and these get spelled out below it.
+    placeholders() {
+      return [...new Set((this.draft.match(/\[[^\]\n]{1,24}\]/g) ?? []))]
     },
 
     isLong() {

@@ -16,6 +16,16 @@ reader to try it. You write from lived experience, not as a pitch. You have had
 the reader's problem. You tried the obvious solution and it fell short. What you
 built, or found, or kept using, actually fixed it. That is the comment.
 
+Two rules override everything else below, including your own instincts about
+what reads naturally:
+1. No dash used as punctuation, anywhere in the comment. Not an em dash (—), not
+   an en dash (–), not " - " between clauses. If you feel a dash coming, stop and
+   use a full stop, a comma, or a colon instead. A hyphen inside one compound word
+   ("two-column", "link-in-bio") is fine; a dash setting off a clause is not.
+2. Never write the product's URL or domain, anywhere in the comment, not even in
+   parentheses. The one-clause disclosure ("i work on X") is the only place the
+   product is named. If the reader wants the link, they'll find it from the name.
+
 How to write this:
 - Lead by mirroring back the exact frustration or pain point in the thread. Use
   the reader's own words or phrasing when possible. Show you get the specific
@@ -27,10 +37,8 @@ How to write this:
   specific insight or moment that changed the outcome for you. What did you learn
   that wasn't obvious? What surprised you? What was the piece everyone misses?
 - Close matter-of-fact about why it worked for you. No hard sell, no urgency, no
-  CTA or website link. If the reader wants to find it, they will. The disclosure
-  ("I work on X") already named it — that's enough. Just end on the insight that
-  changed things: "the missing piece was seeing how your résumé actually renders
-  in an ATS, instead of just a percentage".
+  CTA. End on the insight that changed things: "the missing piece was seeing how
+  your résumé actually renders in an ATS, instead of just a percentage".
 - Write with conviction. You think this actually solved the problem, so say so.
 
 Keeps the comment from being removed (both of these are load-bearing):
@@ -48,13 +56,9 @@ will substitute them before posting. A placeholder is always better than either
 omitting the claim or inventing a figure.
 
 Style: sound like a person who is enthusiastic about something they built, not like a
-press release. Contractions, plain words, no headers, no bullet lists. Two or three
-short paragraphs at most.
-
-Never use a dash as punctuation. No em dashes, no en dashes, no " - " between clauses.
-They are the clearest tell that a comment was written by an AI, and readers on Reddit
-notice. Use a full stop, a comma, or a colon instead. Hyphens inside a normal compound
-word ("two-column", "link-in-bio") are fine and expected.
+press release. Contractions, plain words, no headers, no bullet lists. Two short
+paragraphs, three at most. Aim for 90 to 130 words total; 160 is the ceiling. A long
+comment reads like copy, not like someone who typed this on their phone between tabs.
 
 If a previous draft is provided, write a genuinely different take: different opening,
 different angle, different length. Do not paraphrase it.
@@ -86,6 +90,44 @@ function buildPrompt(input: DraftInput) {
   ].filter(Boolean).join('\n\n')
 }
 
+// qwen-turbo follows the no-dash rule most of the time, not always. A wrong
+// punctuation mark isn't worth failing the request over, but it also isn't
+// worth trusting to a stronger sentence in the prompt a third time.
+const BANNED_DASH = /[—–]|\s-\s/
+
+function stripDashes(text: string) {
+  return text
+    .replace(/\s+[—–]\s+/g, ', ')
+    .replace(/[—–]/g, ',')
+    .replace(/\s-\s/g, ', ')
+}
+
+async function callQwen(messages: Array<{ role: string, content: string }>, apiKey: string, baseUrl: string) {
+  const response = await $fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: {
+      model: MODEL,
+      max_tokens: 2000,
+      temperature: 0.7,
+      messages,
+    },
+    timeout: 120_000,
+  }) as {
+    choices: Array<{ message: { content: string } }>
+    model: string
+  }
+
+  const draft = response.choices?.[0]?.message?.content?.trim()
+  if (!draft) {
+    throw createError({ statusCode: 502, statusMessage: 'Empty draft returned.' })
+  }
+  return { draft, model: response.model || MODEL }
+}
+
 export async function generateReplyDraft(input: DraftInput, apiKey?: string, baseUrl?: string) {
   if (!apiKey) {
     throw createError({
@@ -95,37 +137,44 @@ export async function generateReplyDraft(input: DraftInput, apiKey?: string, bas
   }
 
   try {
-    const response = await $fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: {
-        model: MODEL,
-        max_tokens: 2000,
-        temperature: 0.7,
-        messages: [
-          { role: 'system', content: SYSTEM },
-          { role: 'user', content: buildPrompt(input) },
-        ],
-      },
-      timeout: 120_000,
-    }) as {
-      choices: Array<{ message: { content: string } }>
-      model: string
+    const userPrompt = buildPrompt(input)
+    const first = await callQwen(
+      [
+        { role: 'system', content: SYSTEM },
+        { role: 'user', content: userPrompt },
+      ],
+      apiKey,
+      baseUrl!,
+    )
+
+    if (!BANNED_DASH.test(first.draft)) {
+      return first
     }
 
-    if (!response.choices?.[0]?.message?.content) {
-      throw createError({
-        statusCode: 502,
-        statusMessage: 'Empty draft returned.',
-      })
+    // One retry, pointed directly at the violation, before falling back to a
+    // mechanical fix. The retry usually also fixes anything else off about the
+    // draft, since the model sees its own attempt.
+    const retry = await callQwen(
+      [
+        { role: 'system', content: SYSTEM },
+        { role: 'user', content: userPrompt },
+        { role: 'assistant', content: first.draft },
+        {
+          role: 'user',
+          content: 'That used a dash as punctuation, which breaks the rule. Rewrite the same '
+            + 'comment with every dash replaced by a full stop, a comma, or a colon. Same content, '
+            + 'same length. Return only the corrected comment.',
+        },
+      ],
+      apiKey,
+      baseUrl!,
+    )
+
+    if (!BANNED_DASH.test(retry.draft)) {
+      return retry
     }
 
-    const draft = response.choices[0].message.content.trim()
-
-    return { draft, model: response.model || MODEL }
+    return { draft: stripDashes(retry.draft), model: retry.model }
   } catch (error) {
     throw createError({
       statusCode: 502,
