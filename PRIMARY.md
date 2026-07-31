@@ -111,8 +111,10 @@ write — two concurrent invites can both pass it. The `BEFORE INSERT` trigger
 (`0007_seat_limit_from_setting.sql`, superseding `0006`) is the actual
 guarantee and also covers every other write path.
 
-**If neither migration has been run, the cap is advisory** — the app-level check
-still works for the normal single-request case, so it degrades gracefully.
+0007 is applied in production, so the cap is genuinely enforced. On a fresh
+database that hasn't had it run, the cap is advisory — the app-level check still
+covers the normal single-request case, so it degrades gracefully rather than
+failing open loudly.
 
 The two layers read *different sources*: the app reads env, the trigger reads
 `app.max_org_members` from Postgres. They must be changed together — see §2.
@@ -206,7 +208,9 @@ Applied in order, by hand in the Supabase SQL editor.
 | `0004_thread_claims.sql` | `lead_thread_claims` view + duplicate-claim trigger |
 | `0005_scan_runs.sql` | scan history — prerequisite for trustworthy cron scans |
 | `0006_seat_limit.sql` | seat-limit trigger, with `3` baked into the function |
-| `0007_seat_limit_from_setting.sql` | **same trigger, reading `app.max_org_members` instead. Supersedes 0006 — running only this one is fine. Status unconfirmed, see 3.2** |
+| `0007_seat_limit_from_setting.sql` | same trigger, reading `app.max_org_members` instead. Supersedes 0006 — running only this one is fine |
+
+All applied to production as of 2026-07-30.
 
 > ⚠️ **The Supabase MCP connected to this workspace points at a different
 > project** (its migrations are `profile_faqs`, `creator_growth_foundations`,
@@ -250,7 +254,7 @@ intentional** — the rename to RedIntelli was user-visible strings only.
 
 ## 6. Open items
 
-- [ ] Confirm `0007_seat_limit_from_setting.sql` has been applied to production.
+- [x] ~~Confirm `0007_seat_limit_from_setting.sql` is applied~~ — done 2026-07-30.
 - [ ] Seat limits are global, not per-plan. When billing lands, this wants to be
       a `seat_limit` column on `orgs` rather than one env var for everyone —
       that also collapses the two knobs in §2 back into one.
@@ -272,7 +276,7 @@ intentional** — the rename to RedIntelli was user-visible strings only.
 
 | Commit | Change |
 | --- | --- |
-| `a95cfbd` → | Both limits configurable from env; trigger reads a DB setting |
+| `0427399` | Both limits configurable from env; trigger reads a DB setting |
 | `dd60512` | This file |
 | `006048b` | Remove-a-teammate, releasing their claims first |
 | `4501a4d` | 3-member seat cap; fixed client-side `user.id` (see 3.1) |
