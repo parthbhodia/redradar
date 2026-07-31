@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'campaignId is required.' })
   }
 
-  const { qwenApiKey } = useRuntimeConfig(event)
+  const { qwenApiKey, qwenBaseUrl } = useRuntimeConfig(event)
   if (!qwenApiKey) {
     throw createError({ statusCode: 503, statusMessage: 'Set QWEN_API_KEY to use AI suggestions.' })
   }
@@ -30,6 +30,6 @@ export default defineEventHandler(async (event) => {
     existing = (data ?? []).map((row: { phrase: string }) => row.phrase)
   }
 
-  const keywords = await suggestKeywords({ brand, existing }, qwenApiKey)
+  const keywords = await suggestKeywords({ brand, existing }, qwenApiKey, qwenBaseUrl)
   return { keywords }
 })

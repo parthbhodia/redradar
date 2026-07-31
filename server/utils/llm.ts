@@ -1,7 +1,6 @@
 import type { Brand, Lead } from '#shared/types'
 
 const MODEL = 'qwen-turbo'
-const QWEN_ENDPOINT = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
 
 export interface DraftInput {
   brand: Pick<Brand, 'name' | 'tagline' | 'description' | 'voice' | 'competitors'>
@@ -87,7 +86,7 @@ function buildPrompt(input: DraftInput) {
   ].filter(Boolean).join('\n\n')
 }
 
-export async function generateReplyDraft(input: DraftInput, apiKey?: string) {
+export async function generateReplyDraft(input: DraftInput, apiKey?: string, baseUrl?: string) {
   if (!apiKey) {
     throw createError({
       statusCode: 503,
@@ -96,7 +95,7 @@ export async function generateReplyDraft(input: DraftInput, apiKey?: string) {
   }
 
   try {
-    const response = await $fetch(QWEN_ENDPOINT, {
+    const response = await $fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,

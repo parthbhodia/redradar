@@ -1,5 +1,4 @@
 const MODEL = 'qwen-turbo'
-const QWEN_ENDPOINT = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
 
 export interface BrandSuggestInput {
   name: string
@@ -72,6 +71,7 @@ Rules that matter more than polish:
 export async function suggestBrandProfile(
   input: BrandSuggestInput,
   apiKey: string,
+  baseUrl: string,
 ): Promise<BrandSuggestion> {
   const prompt = [
     `Brand name: ${input.name}`,
@@ -82,7 +82,7 @@ export async function suggestBrandProfile(
   ].join('\n\n')
 
   try {
-    const response = await $fetch(QWEN_ENDPOINT, {
+    const response = await $fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,

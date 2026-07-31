@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'A brand name is required.' })
   }
 
-  const { qwenApiKey } = useRuntimeConfig(event)
+  const { qwenApiKey, qwenBaseUrl } = useRuntimeConfig(event)
   if (!qwenApiKey) {
     throw createError({
       statusCode: 503,
@@ -21,5 +21,5 @@ export default defineEventHandler(async (event) => {
   // suggestion itself touches no rows — nothing to authorize beyond that.
   await requireUserClient(event)
 
-  return await suggestBrandProfile({ name, hint: body?.hint }, qwenApiKey)
+  return await suggestBrandProfile({ name, hint: body?.hint }, qwenApiKey, qwenBaseUrl)
 })

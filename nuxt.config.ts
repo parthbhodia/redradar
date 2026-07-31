@@ -30,6 +30,10 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     qwenApiKey: process.env.QWEN_API_KEY || '',
+    // Workspace-scoped DashScope keys use a per-workspace regional host, not
+    // the generic dashscope.aliyuncs.com — see the API-KEY dialog in the
+    // console for the exact "OpenAI 兼容地址" value.
+    qwenBaseUrl: process.env.QWEN_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     cronSecret: process.env.CRON_SECRET || '',
     // Comma-separated emails exempt from the daily scan limit. Kept in config
     // rather than source: this repo is public.

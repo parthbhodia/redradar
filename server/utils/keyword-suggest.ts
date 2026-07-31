@@ -1,7 +1,6 @@
 import type { Brand } from '#shared/types'
 
 const MODEL = 'qwen-turbo'
-const QWEN_ENDPOINT = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
 
 export interface KeywordSuggestInput {
   brand: Pick<Brand, 'name' | 'tagline' | 'description' | 'competitors'>
@@ -73,6 +72,7 @@ Rules:
 export async function suggestKeywords(
   input: KeywordSuggestInput,
   apiKey: string,
+  baseUrl: string,
 ): Promise<KeywordIdea[]> {
   const brandLines = [
     `Name: ${input.brand.name}`,
@@ -90,7 +90,7 @@ export async function suggestKeywords(
   ].join('\n\n')
 
   try {
-    const response = await $fetch(QWEN_ENDPOINT, {
+    const response = await $fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
