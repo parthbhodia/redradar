@@ -44,7 +44,7 @@
               <span class="inline-block h-1.5 w-1.5 rounded-full bg-signal radar-ping" />
               live · r/SaaS
             </span>
-            <span>scanning 1,247 threads</span>
+            <span>sorted by intent</span>
           </div>
 
           <ul class="mt-4 space-y-2.5">
@@ -77,25 +77,6 @@
       </div>
     </section>
 
-    <!-- Stat band. Product facts, not vanity metrics: every number here is
-         something the code actually does. -->
-    <div class="rule-dashed mx-auto max-w-6xl" />
-    <section class="mx-auto max-w-6xl px-6 py-14">
-      <dl class="grid gap-10 sm:grid-cols-3 sm:gap-0">
-        <div
-          v-for="(stat, i) in stats"
-          :key="stat.label"
-          :class="i > 0 ? 'sm:border-l sm:border-rule sm:pl-10' : ''"
-        >
-          <dd class="font-display text-6xl leading-none tracking-tight">
-            {{ stat.value }}<span class="align-super text-2xl text-signal">{{ stat.unit }}</span>
-          </dd>
-          <dt class="mt-4 font-medium">{{ stat.label }}</dt>
-          <p class="mt-1 font-mono text-xs text-ink-soft">{{ stat.detail }}</p>
-        </div>
-      </dl>
-    </section>
-    <div class="rule-dashed mx-auto max-w-6xl" />
 
     <!-- Why Reddit -->
     <section class="mx-auto max-w-3xl px-6 py-20 text-center">
@@ -178,12 +159,34 @@
           <div class="mt-6 border-t border-dashed border-rule pt-4">
             <p class="mb-2.5 font-mono text-[11px] text-ink-soft">draft</p>
             <p class="rounded-lg bg-paper p-3 text-xs leading-relaxed text-ink-soft">
-              depends what you’re optimising for. if it’s mostly [use case], the free tier of
-              [tool] covers it. caveat that i work on [brand], so i’m biased…
+              depends how many links you actually need. if it’s three or four, Linktree’s free
+              tier is fine and you’re done. caveat that i work on Cueful so i’m biased…
             </p>
           </div>
         </article>
       </div>
+    </section>
+
+    <!-- Stat band. Product facts, not vanity metrics: every number here is
+         something the code actually does, and is verifiable in the repo. -->
+    <div class="rule-dashed mx-auto max-w-6xl" />
+    <section class="mx-auto max-w-6xl px-6 py-20">
+      <dl class="grid gap-12 sm:grid-cols-3 sm:gap-0">
+        <div
+          v-for="(stat, i) in stats"
+          :key="stat.label"
+          :class="i > 0 ? 'sm:border-l sm:border-rule sm:pl-12' : ''"
+        >
+          <dd class="font-display text-7xl leading-[0.9] tracking-tight">
+            {{ stat.value }}<span
+              v-if="stat.unit"
+              class="align-super text-3xl text-signal"
+            >{{ stat.unit }}</span>
+          </dd>
+          <dt class="mt-5 font-medium">{{ stat.label }}</dt>
+          <p class="mt-1.5 font-mono text-xs text-ink-soft">{{ stat.detail }}</p>
+        </div>
+      </dl>
     </section>
 
     <!-- Anatomy of a lead -->
@@ -205,9 +208,9 @@
       <div class="mt-12 rounded-2xl border border-rule bg-card p-6 shadow-sm sm:p-8">
         <div class="flex flex-wrap items-start justify-between gap-4 border-b border-rule pb-6">
           <div>
-            <p class="text-lg font-medium">Anyone found a decent alternative to [competitor]?</p>
+            <p class="text-lg font-medium">Anyone found a decent alternative to Linktree?</p>
             <p class="mt-1 font-mono text-xs text-ink-soft">
-              r/SaaS · 3h ago · 2 comments · matched “[competitor] alternative”
+              r/NewTubers · 3h ago · 2 comments · matched “linktree alternative”
             </p>
           </div>
           <div class="flex items-center gap-2">
@@ -276,21 +279,21 @@
       <div class="text-center">
         <p class="eyebrow">For teams</p>
         <h2 class="mt-7 text-4xl leading-[1.1] font-semibold tracking-tight text-balance sm:text-5xl">
-          Two replies from one brand
-          <span class="accent-line mt-1.5 block font-normal">is worse than none.</span>
+          Share the inbox,
+          <span class="accent-line mt-1.5 block font-normal">not the reply.</span>
         </h2>
         <p class="mx-auto mt-7 max-w-2xl text-lg leading-relaxed text-ink-soft">
-          It’s the one thing a shared inbox has to get right. Two people find the same
-          thread, both write something helpful, both post. Now it reads as brigading, both
-          comments get buried, and the account picks up a reputation it can’t shake. So
-          claiming happens on the card, before anyone opens Reddit.
+          Everyone works the same queue and can see who has picked up what. Claim a thread
+          and your name sits on the card, so the rest of the team can spend their time on
+          the threads nobody has answered yet. One person can draft while another reviews,
+          and the whole team gets one clear voice in each conversation.
         </p>
       </div>
 
       <div class="mx-auto mt-12 max-w-2xl rounded-2xl border border-rule bg-card p-6 shadow-sm">
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">
-            <p class="font-medium">is [competitor] worth it or should I look elsewhere</p>
+            <p class="font-medium">is Linktree Pro worth it or should I look elsewhere</p>
             <p class="mt-1 font-mono text-xs text-ink-soft">r/Entrepreneur · 9h ago · 5 comments</p>
           </div>
           <div class="flex shrink-0 items-center gap-2">
@@ -301,7 +304,7 @@
           </div>
         </div>
         <p class="mt-4 rounded-lg bg-paper px-3 py-2 text-sm text-ink-soft">
-          Priya claimed this thread. Coordinate before posting.
+          Priya has this one. Three other threads are still open.
         </p>
       </div>
 
@@ -313,28 +316,56 @@
       </div>
     </section>
 
-    <!-- What it won't do -->
+    <!-- FAQ. Native <details> rather than a JS accordion: the answers stay in
+         the DOM when collapsed, so crawlers and AI assistants still read them,
+         and keyboard support comes free. -->
     <div class="rule-dashed mx-auto max-w-6xl" />
-    <section class="mx-auto max-w-3xl px-6 py-20 text-center">
-      <p class="eyebrow">The part most tools skip</p>
-      <h2 class="mt-7 text-4xl leading-[1.1] font-semibold tracking-tight text-balance sm:text-5xl">
-        It won’t post for you.
-        <span class="accent-line mt-1.5 block font-normal">That’s the point.</span>
-      </h2>
-      <p class="mx-auto mt-7 max-w-2xl text-lg leading-relaxed text-ink-soft">
-        Automated replies are why Reddit hates marketers. RedIntelli writes a draft from your
-        brand’s own voice. It answers the question first, discloses who you are, and says
-        when you’re not the right fit. Then it hands it to you. You read it, you edit it, you
-        post it. A comment that gets upvoted is worth more than a hundred that get removed.
-      </p>
+    <section id="faq" class="mx-auto max-w-6xl scroll-mt-24 px-6 py-20">
+      <div class="text-center">
+        <p class="eyebrow">Questions</p>
+        <h2 class="mt-7 text-4xl leading-[1.1] font-semibold tracking-tight text-balance sm:text-5xl">
+          Reddit lead generation,
+          <span class="accent-line mt-1.5 block font-normal">answered plainly.</span>
+        </h2>
+      </div>
+
+      <div class="mx-auto mt-14 max-w-3xl">
+        <details
+          v-for="(item, i) in faq"
+          :key="item.q"
+          class="faq-item group border-t border-rule"
+          :class="i === faq.length - 1 ? 'border-b' : ''"
+        >
+          <summary
+            class="flex cursor-pointer list-none items-center justify-between gap-6 py-5
+                   focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal
+                   [&::-webkit-details-marker]:hidden"
+          >
+            <h3 class="text-lg font-medium text-balance">{{ item.q }}</h3>
+            <span
+              class="shrink-0 text-ink-soft transition-transform duration-200 group-open:rotate-45
+                     motion-reduce:transition-none"
+              aria-hidden="true"
+            >
+              <svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M10 4v12M4 10h12" stroke-linecap="round" />
+              </svg>
+            </span>
+          </summary>
+
+          <p class="max-w-2xl pb-6 leading-relaxed text-ink-soft">{{ item.a }}</p>
+        </details>
+      </div>
     </section>
 
     <!-- CTA -->
     <div class="rule-dashed mx-auto max-w-6xl" />
     <section class="mx-auto max-w-3xl px-6 py-24 text-center">
+      <!-- Both halves are literally what the scorer does: +15 inside 24h,
+           +8 when a thread still has few replies. -->
       <h2 class="text-4xl leading-[1.1] font-semibold tracking-tight text-balance sm:text-5xl">
-        The thread is open
-        <span class="accent-line mt-1.5 block font-normal">for about a day.</span>
+        Fresh threads score highest.
+        <span class="accent-line mt-1.5 block font-normal">So do the ones nobody answered.</span>
       </h2>
       <div class="mt-9 flex flex-wrap items-center justify-center gap-3">
         <NuxtLink to="/login" class="btn-ink">
@@ -347,6 +378,44 @@
 </template>
 
 <script>
+// Single source for both the rendered FAQ and its JSON-LD, so the structured
+// data can never drift from what a visitor actually reads. Google treats that
+// mismatch as a violation, and it is the usual way FAQ schema breaks.
+const FAQ = [
+  {
+    q: 'How do you find leads on Reddit?',
+    a: 'You search for the phrases buyers use when they are choosing between tools, not for your product name. Competitor comparisons ("linktree alternative"), problem statements, and myth questions surface people who are actively deciding. RedIntelli runs those searches on a schedule, scores each thread for buying intent, and files it in an inbox so you reply while the question is still open.',
+  },
+  {
+    q: 'Is promoting on Reddit against the rules?',
+    a: 'Self-promotion is allowed on Reddit, but undisclosed promotion is not, and most subreddits remove comments that read as advertising. The workable approach is to answer the question first, mention your product only when it genuinely fits, and disclose that you work there. RedIntelli drafts replies that follow those three rules by default.',
+  },
+  {
+    q: 'Does RedIntelli post to Reddit for me?',
+    a: 'No, and that is deliberate. Automated replies are why Reddit distrusts marketers. RedIntelli writes a draft in your brand voice and hands it to you to read, edit and post yourself. One comment that gets upvoted is worth more than a hundred that get removed.',
+  },
+  {
+    q: 'How is a lead scored?',
+    a: 'Every thread gets a 0-100 score built from 23 signals: how closely it matches your keyword, whether the title shows buying intent, how recently it was posted, how many replies it already has, and whether it mentions a competitor. Each signal that moved the score is stored with the lead, so you can see exactly why a number is what it is.',
+  },
+  {
+    q: 'What is the best Reddit monitoring tool?',
+    a: 'It depends what you need. Free options like Reddit\'s own keyword alerts or F5Bot email you every keyword hit with no ranking, which is fine at low volume. Paid tools differ mainly in whether they rank threads by intent and whether they help you write the reply. RedIntelli scores and drafts; if you only want raw alerts, a free tool is enough.',
+  },
+  {
+    q: 'Which subreddits does it watch?',
+    a: 'Any of them. You add keywords rather than choosing communities, so a thread is found wherever it was posted, including small subreddits you would never think to monitor. You can pin an individual keyword to one subreddit when the phrase is ambiguous outside it.',
+  },
+  {
+    q: 'Can a marketing team share one inbox?',
+    a: 'Yes. Everyone in a workspace sees the same queue, and claiming a thread puts your name on the card so teammates move on to threads nobody has answered. Each person keeps their own draft on a lead, which means one person can write a first pass and another can sharpen it before it goes out.',
+  },
+  {
+    q: 'How much does RedIntelli cost?',
+    a: 'It is free to start and does not ask for a card. You bring your own keywords and your own brand voice, and you can run a scan and read scored leads before deciding whether it earns a place in your workflow.',
+  },
+]
+
 export default {
   setup() {
     useHead({
@@ -355,31 +424,47 @@ export default {
         name: 'description',
         content: 'RedIntelli watches Reddit for the threads that match your keywords, scores them by buying intent, and drafts a reply worth posting.',
       }],
+      script: [{
+        type: 'application/ld+json',
+        innerHTML: JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          mainEntity: FAQ.map(item => ({
+            '@type': 'Question',
+            name: item.q,
+            acceptedAnswer: { '@type': 'Answer', text: item.a },
+          })),
+        }),
+      }],
     })
   },
 
   data() {
     return {
+      faq: FAQ,
+
       assurances: ['Free to start', 'No card', 'Your keywords, your voice'],
 
+      // Every figure is something the code does, checkable in the repo. No
+      // index sizes or time-saved claims we haven't measured.
       stats: [
         {
           value: '23',
           unit: '',
-          label: 'signals scored per thread',
+          label: 'signals per thread',
           detail: 'intent · freshness · competitors · noise',
         },
         {
-          value: '0-100',
-          unit: '',
-          label: 'explainable score',
-          detail: 'every point traced to a signal',
+          value: '100',
+          unit: 'pt',
+          label: 'score, fully traced',
+          detail: 'every point tied to a named signal',
         },
         {
           value: '1',
           unit: '',
           label: 'reply per thread',
-          detail: 'claiming stops the double-post',
+          detail: 'claiming blocks the second',
         },
       ],
 
@@ -388,14 +473,14 @@ export default {
           sub: 'SaaS',
           age: '3m',
           score: 87,
-          title: 'Anyone found a decent alternative to [competitor]?',
+          title: 'Anyone found a decent alternative to Linktree?',
           signals: 'exact phrase · asking for alternative · few replies',
         },
         {
           sub: 'Entrepreneur',
           age: '2h',
           score: 64,
-          title: 'is [competitor] worth it or should I look elsewhere',
+          title: 'is Linktree Pro worth it or should I look elsewhere',
           signals: 'competitor mentioned · evaluating options',
         },
         {
@@ -436,16 +521,16 @@ export default {
 
       team: [
         {
-          title: 'Your own draft',
-          body: 'Everyone gets their own version on a lead, so a teammate saving theirs never overwrites yours. One person can draft and another can review.',
+          title: 'Draft together',
+          body: 'Everyone gets their own version on a lead, so saving yours never overwrites a teammate’s. Write a first pass, hand it over, let someone with more context sharpen it.',
         },
         {
-          title: 'A record of what shipped',
-          body: 'Marking a lead replied captures the link to the comment. The team can see what actually went out, and which drafts earned upvotes.',
+          title: 'Learn from what shipped',
+          body: 'Marking a lead replied captures the link to the comment. The team can read what actually went out and see which drafts earned upvotes, so the next one starts better.',
         },
         {
-          title: 'Roles that mean something',
-          body: 'Owners and admins manage campaigns and invite people. Members work the queue without being able to delete the work.',
+          title: 'Room to give people access',
+          body: 'Owners and admins set up campaigns and invite the team. Members get the full queue to work, without anyone worrying they’ll delete a campaign by accident.',
         },
       ],
     }

@@ -43,7 +43,7 @@
         <div class="mt-5 space-y-3">
           <div class="rounded-xl border border-rule p-4">
             <div class="flex items-start justify-between gap-3">
-              <p class="text-sm font-medium">Anyone found a decent alternative to [competitor]?</p>
+              <p class="text-sm font-medium">Anyone found a decent alternative to Linktree?</p>
               <span class="shrink-0 rounded-lg bg-signal/12 px-2 py-0.5 font-mono text-sm text-signal tabular-nums">87</span>
             </div>
             <p class="mt-1 text-xs text-ink-soft">r/SaaS · 3h ago · 2 comments</p>
@@ -55,7 +55,7 @@
 
           <div class="rounded-xl border border-rule p-4 opacity-80">
             <div class="flex items-start justify-between gap-3">
-              <p class="text-sm font-medium">is [competitor] worth it or should I look elsewhere</p>
+              <p class="text-sm font-medium">is Linktree Pro worth it or should I look elsewhere</p>
               <span class="shrink-0 rounded-lg bg-panel/5 px-2 py-0.5 font-mono text-sm text-ink-soft tabular-nums">64</span>
             </div>
             <p class="mt-1 text-xs text-ink-soft">r/Entrepreneur · 9h ago · 5 comments</p>
@@ -64,8 +64,8 @@
           <div class="rounded-xl border border-dashed border-rule p-4">
             <p class="text-xs font-medium tracking-[0.12em] text-ink-soft uppercase">Draft</p>
             <p class="mt-2 text-sm leading-relaxed text-ink-soft">
-              depends what you're optimising for. if it's mostly [use case], honestly the free
-              tier of [tool] covers it. disclosure: I work on [brand], happy to answer questions…
+              depends how many links you actually need. if it's three or four, Linktree's free
+              tier is fine and you're done. caveat that i work on Cueful so i'm biased…
             </p>
           </div>
         </div>

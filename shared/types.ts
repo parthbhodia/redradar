@@ -78,6 +78,15 @@ export interface DiscoverRequest {
   limit?: number
 }
 
+export interface ScanQuotaInfo {
+  limit: number
+  used: number
+  remaining: number
+  /** ISO timestamp of the next UTC midnight. */
+  resetsAt: string
+  unlimited: boolean
+}
+
 export interface DiscoverResponse {
   scanned: number
   inserted: number
@@ -85,6 +94,8 @@ export interface DiscoverResponse {
   skipped: number
   keywords: number
   errors: string[]
+  /** Null in local mode, which has no quota. */
+  quota?: ScanQuotaInfo | null
 }
 
 export interface DraftRequest {

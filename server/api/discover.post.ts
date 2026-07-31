@@ -3,6 +3,7 @@ import { collectCandidates, upsertCandidates } from '../utils/discovery'
 import { requireCampaign } from '../utils/guard'
 import { isLocalMode, listKeywords, upsertLeads } from '../utils/local-db'
 import { createRedditAdapter } from '../utils/reddit'
+import { getScanQuota, untilReset } from '../utils/scan-quota'
 import { failScanRun, finishScanRun, startScanRun } from '../utils/scan-runs'
 
 export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
@@ -50,11 +51,30 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
     ? (await import('#supabase/server')).serverSupabaseServiceRole(event)
     : null
 
+  // Rate limit before doing any work. Enforced here rather than in the UI
+  // because the endpoint is reachable directly.
+  let quota = null
+  if (admin && user?.id) {
+    quota = await getScanQuota(admin, user.id, user.email, config.adminEmails)
+    if (quota.remaining <= 0) {
+      throw createError({
+        statusCode: 429,
+        statusMessage: `Daily scan limit reached (${quota.limit} per day). Resets ${untilReset(quota.resetsAt)}.`,
+      })
+    }
+  }
+
   // Opened before touching Reddit, so a scan that dies mid-flight is still
-  // visible as `running` instead of leaving no trace.
+  // visible as `running` instead of leaving no trace. It also consumes the
+  // quota slot: a scan that errors still cost a Reddit round trip.
   const runId = admin
     ? await startScanRun(admin, campaign.id, { trigger: 'manual', triggeredBy: user?.id ?? null })
     : null
+
+  // The run just opened counts against the allowance.
+  const quotaAfter = quota && !quota.unlimited
+    ? { ...quota, used: quota.used + 1, remaining: Math.max(0, quota.remaining - 1) }
+    : quota
 
   let collected
   try {
@@ -79,7 +99,7 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
         byKeyword: new Map(),
       })
     }
-    return { scanned, inserted: 0, updated: 0, skipped: 0, keywords: keywords.length, errors }
+    return { scanned, inserted: 0, updated: 0, skipped: 0, keywords: keywords.length, errors, quota: quotaAfter }
   }
 
   if (!admin) {
@@ -105,6 +125,7 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
       skipped: scanned - candidates.length,
       keywords: keywords.length,
       errors,
+      quota: quotaAfter,
     }
   }
 
@@ -130,6 +151,7 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
       skipped: scanned - candidates.length,
       keywords: keywords.length,
       errors: allErrors,
+      quota: quotaAfter,
     }
   } catch (error) {
     await failScanRun(admin, runId, (error as Error).message)

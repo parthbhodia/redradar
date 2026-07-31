@@ -26,6 +26,9 @@ export default defineNuxtConfig({
   runtimeConfig: {
     anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
     cronSecret: process.env.CRON_SECRET || '',
+    // Comma-separated emails exempt from the daily scan limit. Kept in config
+    // rather than source: this repo is public.
+    adminEmails: process.env.ADMIN_EMAILS || '',
     redditClientId: process.env.REDDIT_CLIENT_ID || '',
     redditClientSecret: process.env.REDDIT_CLIENT_SECRET || '',
     redditUserAgent: process.env.REDDIT_USER_AGENT || 'redintelli/0.1 (lead discovery)',

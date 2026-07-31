@@ -214,8 +214,23 @@
             <p class="mt-1 text-sm text-mute">
               Searches Reddit for each keyword, scores what it finds, and files it in your inbox.
             </p>
+            <!-- Shown before they hit it, not after: a disabled button with no
+                 explanation is worse than the limit itself. -->
+            <p v-if="quota && !quota.unlimited" class="mt-2 text-xs" :class="quotaExhausted ? 'text-warn' : 'text-mute'">
+              <template v-if="quotaExhausted">
+                Daily limit reached. Resets {{ quotaResetsIn }}.
+              </template>
+              <template v-else>
+                <span class="font-mono">{{ quota.remaining }}</span>
+                of {{ quota.limit }} scans left today
+              </template>
+            </p>
           </div>
-          <button class="btn-primary shrink-0" :disabled="scanning || !keywords.length" @click="runScan">
+          <button
+            class="btn-primary shrink-0"
+            :disabled="scanning || !keywords.length || quotaExhausted"
+            @click="runScan"
+          >
             {{ scanning ? 'Scanning…' : 'Scan now' }}
           </button>
         </div>
@@ -312,6 +327,7 @@ export default {
       assumptions: [],
       suggestingKeywords: false,
       keywordIdeas: [],
+      quota: null,
       members: [],
       inviteEmail: '',
       inviting: false,
@@ -320,6 +336,18 @@ export default {
   },
 
   computed: {
+    quotaExhausted() {
+      return Boolean(this.quota && !this.quota.unlimited && this.quota.remaining <= 0)
+    },
+
+    quotaResetsIn() {
+      if (!this.quota?.resetsAt) return 'tomorrow'
+      const hours = Math.max(0, (new Date(this.quota.resetsAt) - Date.now()) / 3600000)
+      if (hours < 1) return `in ${Math.max(1, Math.round(hours * 60))} minutes`
+      const h = Math.round(hours)
+      return `in ${h} hour${h === 1 ? '' : 's'}`
+    },
+
     canInvite() {
       const meId = this.me?.id
       const mine = this.members.find(m => m.user_id === meId)
@@ -618,6 +646,7 @@ export default {
           body: { campaignId: this.activeCampaignId },
         })
         this.scanResult = result
+        if (result.quota !== undefined) this.quota = result.quota
 
         // Straight to the inbox when there's something new to look at. Stay put
         // when a keyword errored or nothing landed — that summary is the result,
@@ -629,6 +658,10 @@ export default {
         }
       } catch (e) {
         this.error = e.data?.statusMessage || e.message
+        // 429 means the allowance is gone; reflect it without another request.
+        if (e.statusCode === 429 || e.response?.status === 429) {
+          this.quota = { ...(this.quota ?? { limit: 3, resetsAt: null, unlimited: false }), remaining: 0, used: 3 }
+        }
       } finally {
         this.scanning = false
       }
