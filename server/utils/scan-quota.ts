@@ -1,7 +1,4 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { DAILY_SCAN_LIMIT } from '#shared/limits'
-
-export { DAILY_SCAN_LIMIT }
 
 export interface ScanQuota {
   limit: number
@@ -53,6 +50,7 @@ export async function getScanQuota(
   userId: string,
   email: string | null | undefined,
   adminEmails: string,
+  dailyLimit: number,
 ): Promise<ScanQuota> {
   const resetsAt = nextUtcMidnight().toISOString()
 
@@ -73,9 +71,9 @@ export async function getScanQuota(
 
   const used = count ?? 0
   return {
-    limit: DAILY_SCAN_LIMIT,
+    limit: dailyLimit,
     used,
-    remaining: Math.max(0, DAILY_SCAN_LIMIT - used),
+    remaining: Math.max(0, dailyLimit - used),
     resetsAt,
     unlimited: false,
   }

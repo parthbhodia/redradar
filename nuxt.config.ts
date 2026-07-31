@@ -1,4 +1,9 @@
 import tailwindcss from '@tailwindcss/vite'
+import {
+  DEFAULT_DAILY_SCAN_LIMIT,
+  DEFAULT_MAX_ORG_MEMBERS,
+  positiveIntOr,
+} from './shared/limits'
 
 const localMode = process.env.REDRADAR_LOCAL === '1' || process.env.REDRADAR_LOCAL === 'true'
 
@@ -34,6 +39,12 @@ export default defineNuxtConfig({
     redditUserAgent: process.env.REDDIT_USER_AGENT || 'redintelli/0.1 (lead discovery)',
     public: {
       localMode,
+      // Public because the UI states both limits before anyone hits one.
+      // Neither is a secret, and the server re-reads them when it enforces.
+      // Overridable at runtime as NUXT_PUBLIC_MAX_ORG_MEMBERS /
+      // NUXT_PUBLIC_DAILY_SCAN_LIMIT without a rebuild.
+      maxOrgMembers: positiveIntOr(DEFAULT_MAX_ORG_MEMBERS, process.env.MAX_ORG_MEMBERS),
+      dailyScanLimit: positiveIntOr(DEFAULT_DAILY_SCAN_LIMIT, process.env.DAILY_SCAN_LIMIT),
     },
   },
 

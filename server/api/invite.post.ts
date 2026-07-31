@@ -1,4 +1,3 @@
-import { MAX_ORG_MEMBERS } from '#shared/limits'
 import { requireUserClient } from '../utils/guard'
 
 /**
@@ -54,10 +53,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, statusMessage: seatError.message })
   }
 
-  if ((seatsUsed ?? 0) >= MAX_ORG_MEMBERS) {
+  const maxMembers = useRuntimeConfig(event).public.maxOrgMembers
+
+  if ((seatsUsed ?? 0) >= maxMembers) {
     throw createError({
       statusCode: 409,
-      statusMessage: `This workspace is full — ${MAX_ORG_MEMBERS} members is the limit.`,
+      statusMessage: `This workspace is full — ${maxMembers} members is the limit.`,
     })
   }
 

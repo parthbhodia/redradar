@@ -327,8 +327,6 @@
 </template>
 
 <script>
-import { MAX_ORG_MEMBERS } from '#shared/limits'
-
 export default {
   setup() {
     useHead({ title: 'Setup · RedIntelli' })
@@ -348,7 +346,8 @@ export default {
       markQuotaExhausted: markExhausted,
       quotaResetsInFn: resetsIn,
       toast,
-      maxMembers: MAX_ORG_MEMBERS,
+      maxMembers: config.public.maxOrgMembers,
+      dailyScanLimit: config.public.dailyScanLimit,
       ...workspace,
     }
   },
@@ -748,7 +747,7 @@ export default {
           this.markQuotaExhausted(e.data?.data?.quota ?? e.data?.quota ?? null)
           this.toast('Daily scan limit reached.', {
             tone: 'error',
-            detail: `You get ${this.quota?.limit ?? 3} scans a day. Resets ${this.quotaResetsIn}.`,
+            detail: `You get ${this.quota?.limit ?? this.dailyScanLimit} scans a day. Resets ${this.quotaResetsIn}.`,
           })
         } else {
           this.toast('Scan failed.', { tone: 'error', detail: this.error })

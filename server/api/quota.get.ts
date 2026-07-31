@@ -16,7 +16,13 @@ export default defineEventHandler(async (event): Promise<ScanQuotaInfo | null> =
   const { serverSupabaseServiceRole } = await import('#supabase/server')
   const admin = serverSupabaseServiceRole(event) as import('@supabase/supabase-js').SupabaseClient<any>
 
-  const quota = await getScanQuota(admin, user.id, user.email, config.adminEmails)
+  const quota = await getScanQuota(
+    admin,
+    user.id,
+    user.email,
+    config.adminEmails,
+    config.public.dailyScanLimit,
+  )
 
   // Infinity doesn't survive JSON; the flag is what the UI reads anyway.
   return {

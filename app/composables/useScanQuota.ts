@@ -43,7 +43,7 @@ export function useScanQuota() {
       quota.value = fromServer
       return
     }
-    const limit = quota.value?.limit || 3
+    const limit = quota.value?.limit || useRuntimeConfig().public.dailyScanLimit
     quota.value = {
       limit,
       used: limit,

@@ -28,13 +28,30 @@ LLM citation tracking.
 
 ## 2. Product limits
 
-| Limit | Value | Where enforced |
-| --- | --- | --- |
-| Manual scans | 3 per **user** per UTC day | `server/utils/scan-quota.ts`, checked in `discover.post.ts` before any Reddit work |
-| Workspace seats | 3 **including the owner** | `invite.post.ts` + trigger in `0006_seat_limit.sql` |
+| Limit | Default | Env var | Where enforced |
+| --- | --- | --- | --- |
+| Manual scans | 3 per **user** per UTC day | `DAILY_SCAN_LIMIT` | `server/utils/scan-quota.ts`, checked in `discover.post.ts` before any Reddit work |
+| Workspace seats | 3 **including the owner** | `MAX_ORG_MEMBERS` | `invite.post.ts` + trigger from `0007_seat_limit_from_setting.sql` |
 
-Both constants live in [`shared/limits.ts`](shared/limits.ts) so the server and
-the UI can't drift apart.
+Both are read from `runtimeConfig.public` — never import the constants from
+[`shared/limits.ts`](shared/limits.ts) directly, or an env change won't apply.
+Those exports are fallbacks only.
+
+On Vercel they can also be set as `NUXT_PUBLIC_MAX_ORG_MEMBERS` /
+`NUXT_PUBLIC_DAILY_SCAN_LIMIT`, which take effect **without a rebuild** — Nitro
+reads `NUXT_PUBLIC_*` at boot. Verified against a built server: the SSR payload
+picked up `7` and `9` from env with no rebuild.
+
+⚠️ **The seat limit has a second knob.** Postgres cannot read Vercel's
+environment, so the trigger reads its own database setting. Changing
+`MAX_ORG_MEMBERS` alone leaves the trigger at its previous value, and invites
+will fail at whichever number is lower. To change both:
+
+```sql
+alter database postgres set app.max_org_members = 5;
+```
+
+Unset, the trigger falls back to 3.
 
 **Admins** are exempt from the scan limit only — not the seat limit. Configured
 by `ADMIN_EMAILS` (comma-separated), *not* hardcoded, because this repo is
@@ -87,13 +104,20 @@ Supabase user.**
 
 Truthiness checks (`if (user.value)`) are unaffected and still fine.
 
-### 3.2 Migration 0006 is the real seat limit
+### 3.2 The seat limit is enforced at two layers, with two knobs
 
 `/api/invite` counts seats before inviting, but that's a read followed by a
-write — two concurrent invites can both pass it. The `BEFORE INSERT` trigger in
-`0006_seat_limit.sql` is the actual guarantee and also covers every other write
-path. **If 0006 hasn't been run, the cap is advisory.** It degrades gracefully:
-the app-level check still works for the normal single-request case.
+write — two concurrent invites can both pass it. The `BEFORE INSERT` trigger
+(`0007_seat_limit_from_setting.sql`, superseding `0006`) is the actual
+guarantee and also covers every other write path.
+
+**If neither migration has been run, the cap is advisory** — the app-level check
+still works for the normal single-request case, so it degrades gracefully.
+
+The two layers read *different sources*: the app reads env, the trigger reads
+`app.max_org_members` from Postgres. They must be changed together — see §2.
+The app number is the one users see explained in the UI; the trigger number is
+the one that actually refuses the insert.
 
 ### 3.3 Member removal is deliberately ordered, and not atomic
 
@@ -181,7 +205,8 @@ Applied in order, by hand in the Supabase SQL editor.
 | `0003_repair_team_policies.sql` | re-applies team policies 0002 could abort before reaching |
 | `0004_thread_claims.sql` | `lead_thread_claims` view + duplicate-claim trigger |
 | `0005_scan_runs.sql` | scan history — prerequisite for trustworthy cron scans |
-| `0006_seat_limit.sql` | **seat-limit trigger — status unconfirmed, see 3.2** |
+| `0006_seat_limit.sql` | seat-limit trigger, with `3` baked into the function |
+| `0007_seat_limit_from_setting.sql` | **same trigger, reading `app.max_org_members` instead. Supersedes 0006 — running only this one is fine. Status unconfirmed, see 3.2** |
 
 > ⚠️ **The Supabase MCP connected to this workspace points at a different
 > project** (its migrations are `profile_faqs`, `creator_growth_foundations`,
@@ -201,6 +226,8 @@ gitignored except `.env.example`.
 | `NUXT_SUPABASE_SECRET_KEY` | service role; server-only |
 | `ANTHROPIC_API_KEY` | drafts fall back to a template if unset |
 | `ADMIN_EMAILS` | scan-limit exemption; **must be set on Vercel or you rate-limit yourself in production** |
+| `MAX_ORG_MEMBERS` | seats per workspace, default 3. App layer only — the DB trigger needs its own setting, see §2 |
+| `DAILY_SCAN_LIMIT` | manual scans per user per day, default 3 |
 | `CRON_SECRET` | `x-cron-secret` for `/api/cron/scan-all`; empty disables the endpoint |
 | `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | optional; falls back to OpenCLI then public JSON |
 | `REDRADAR_LOCAL` | `1` for SQLite mode |
@@ -223,7 +250,10 @@ intentional** — the rename to RedIntelli was user-visible strings only.
 
 ## 6. Open items
 
-- [ ] Confirm `0006_seat_limit.sql` has been applied to production.
+- [ ] Confirm `0007_seat_limit_from_setting.sql` has been applied to production.
+- [ ] Seat limits are global, not per-plan. When billing lands, this wants to be
+      a `seat_limit` column on `orgs` rather than one env var for everyone —
+      that also collapses the two knobs in §2 back into one.
 - [ ] **Rotate two credentials that were pasted into a chat transcript**: the
       Supabase `sb_secret_…` key and the Google OAuth client secret.
 - [ ] Google Branding: app name, privacy URL, terms URL (needed for OAuth
@@ -242,6 +272,7 @@ intentional** — the rename to RedIntelli was user-visible strings only.
 
 | Commit | Change |
 | --- | --- |
+| `a95cfbd` → | Both limits configurable from env; trigger reads a DB setting |
 | `dd60512` | This file |
 | `006048b` | Remove-a-teammate, releasing their claims first |
 | `4501a4d` | 3-member seat cap; fixed client-side `user.id` (see 3.1) |

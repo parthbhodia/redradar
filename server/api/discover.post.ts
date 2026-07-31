@@ -55,7 +55,13 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
   // because the endpoint is reachable directly.
   let quota = null
   if (admin && user?.id) {
-    quota = await getScanQuota(admin, user.id, user.email, config.adminEmails)
+    quota = await getScanQuota(
+      admin,
+      user.id,
+      user.email,
+      config.adminEmails,
+      config.public.dailyScanLimit,
+    )
     if (quota.remaining <= 0) {
       throw createError({
         statusCode: 429,
