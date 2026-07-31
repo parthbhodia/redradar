@@ -2,6 +2,7 @@
   <NuxtLayout :name="layoutName">
     <NuxtPage />
   </NuxtLayout>
+  <ToastHost />
 </template>
 
 <script>

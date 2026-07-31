@@ -302,11 +302,20 @@ export default {
     useHead({ title: 'Setup · RedIntelli' })
     const config = useRuntimeConfig()
     const workspace = useWorkspace()
+    // Shared with the header badge so both always show the same number.
+    const { quota, exhausted, set: setQuota, markExhausted, resetsIn } = useScanQuota()
+    const { push: toast } = useToasts()
     return {
       localMode: config.public.localMode,
       me: config.public.localMode ? ref(null) : useSupabaseUser(),
       // Survives the hop to the inbox so the scan result isn't lost on navigate.
       lastScan: useState('rr:lastScan', () => null),
+      quota,
+      quotaExhausted: exhausted,
+      setQuota,
+      markQuotaExhausted: markExhausted,
+      quotaResetsInFn: resetsIn,
+      toast,
       ...workspace,
     }
   },
@@ -327,7 +336,6 @@ export default {
       assumptions: [],
       suggestingKeywords: false,
       keywordIdeas: [],
-      quota: null,
       members: [],
       inviteEmail: '',
       inviting: false,
@@ -336,16 +344,8 @@ export default {
   },
 
   computed: {
-    quotaExhausted() {
-      return Boolean(this.quota && !this.quota.unlimited && this.quota.remaining <= 0)
-    },
-
     quotaResetsIn() {
-      if (!this.quota?.resetsAt) return 'tomorrow'
-      const hours = Math.max(0, (new Date(this.quota.resetsAt) - Date.now()) / 3600000)
-      if (hours < 1) return `in ${Math.max(1, Math.round(hours * 60))} minutes`
-      const h = Math.round(hours)
-      return `in ${h} hour${h === 1 ? '' : 's'}`
+      return this.quotaResetsInFn()
     },
 
     canInvite() {
@@ -646,7 +646,16 @@ export default {
           body: { campaignId: this.activeCampaignId },
         })
         this.scanResult = result
-        if (result.quota !== undefined) this.quota = result.quota
+        this.setQuota(result.quota)
+
+        // The badge is up in the header and easy to miss, so say it out loud on
+        // the last scan of the day rather than letting tomorrow be a surprise.
+        if (result.quota && !result.quota.unlimited && result.quota.remaining === 0) {
+          this.toast('That was your last scan today.', {
+            tone: 'warn',
+            detail: `Your ${result.quota.limit} daily scans reset ${this.quotaResetsIn}.`,
+          })
+        }
 
         // Straight to the inbox when there's something new to look at. Stay put
         // when a keyword errored or nothing landed — that summary is the result,
@@ -660,7 +669,14 @@ export default {
         this.error = e.data?.statusMessage || e.message
         // 429 means the allowance is gone; reflect it without another request.
         if (e.statusCode === 429 || e.response?.status === 429) {
-          this.quota = { ...(this.quota ?? { limit: 3, resetsAt: null, unlimited: false }), remaining: 0, used: 3 }
+          // h3 nests `data` inside the error body; fall back to a local guess.
+          this.markQuotaExhausted(e.data?.data?.quota ?? e.data?.quota ?? null)
+          this.toast('Daily scan limit reached.', {
+            tone: 'error',
+            detail: `You get ${this.quota?.limit ?? 3} scans a day. Resets ${this.quotaResetsIn}.`,
+          })
+        } else {
+          this.toast('Scan failed.', { tone: 'error', detail: this.error })
         }
       } finally {
         this.scanning = false

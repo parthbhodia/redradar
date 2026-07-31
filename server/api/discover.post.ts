@@ -60,6 +60,9 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
       throw createError({
         statusCode: 429,
         statusMessage: `Daily scan limit reached (${quota.limit} per day). Resets ${untilReset(quota.resetsAt)}.`,
+        // Carried on the error so the client can show the real reset time
+        // rather than guessing at it.
+        data: { quota },
       })
     }
   }
