@@ -4,7 +4,7 @@ Running state of RedIntelli: the decisions, the limits, and the things that will
 bite you. [README.md](README.md) covers setup and how to run it — this file
 covers everything you'd otherwise have to rediscover.
 
-Updated on every commit. Last synced: `006048b`.
+Updated as part of every commit — see §7 for what's landed.
 
 ---
 
@@ -242,6 +242,7 @@ intentional** — the rename to RedIntelli was user-visible strings only.
 
 | Commit | Change |
 | --- | --- |
+| `dd60512` | This file |
 | `006048b` | Remove-a-teammate, releasing their claims first |
 | `4501a4d` | 3-member seat cap; fixed client-side `user.id` (see 3.1) |
 | `99c5375` | Quota badge in the header, toast on 429 |
