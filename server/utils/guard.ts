@@ -41,11 +41,25 @@ export async function requireUserClient(event: H3Event) {
     serverSupabaseClient: (event: H3Event) => Promise<any>
     serverSupabaseUser: (event: H3Event) => Promise<any>
   }
-  const user = await mod.serverSupabaseUser(event)
-  if (!user) {
+  const claims = await mod.serverSupabaseUser(event)
+  if (!claims) {
     throw createError({ statusCode: 401, statusMessage: 'Not signed in.' })
   }
-  return { user, client: await mod.serverSupabaseClient(event), local: false as const }
+
+  // @nuxtjs/supabase v2 resolves this from `auth.getClaims()`, so it is a JWT
+  // payload rather than a User: the id lives on `sub`. Reading `.id` yields
+  // undefined, which silently writes a NULL user_id and trips RLS instead of
+  // failing loudly. Normalise here so callers never have to know.
+  const id = claims.sub ?? claims.id
+  if (!id) {
+    throw createError({ statusCode: 401, statusMessage: 'Session has no user id.' })
+  }
+
+  return {
+    user: { ...claims, id, email: claims.email },
+    client: await mod.serverSupabaseClient(event),
+    local: false as const,
+  }
 }
 
 export async function requireCampaign(event: H3Event, campaignId: string) {
