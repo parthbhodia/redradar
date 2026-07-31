@@ -309,6 +309,14 @@ intentional** — the rename to RedIntelli was user-visible strings only.
          the account that owns the Cloud project. A Domain property covers apex
          and `www` together; a URL-prefix property would not.
 
+      **The Branding dialog shows stale findings.** It is headed *"Issues found
+      from the previous verification attempt"* and appears every time you
+      resubmit, listing the last run's results — not a fresh evaluation. It
+      reads exactly like a live failure. Choose *"I have fixed the issues"* to
+      queue a new review; *"I believe that the issues found are incorrect"*
+      routes to a slower manual appeal and is the wrong claim unless the
+      findings really are wrong.
+
       **The homepage URL must be the `www` form.** Vercel treats `www` as
       primary and 308-redirects the apex, so `https://redintelli.com` returns a
       15-byte plain-text redirect body containing the app name zero times.
