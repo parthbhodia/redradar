@@ -90,16 +90,46 @@ function buildPrompt(input: DraftInput) {
   ].filter(Boolean).join('\n\n')
 }
 
-// qwen-turbo follows the no-dash rule most of the time, not always. A wrong
-// punctuation mark isn't worth failing the request over, but it also isn't
-// worth trusting to a stronger sentence in the prompt a third time.
+// qwen-turbo follows the two hard rules in SYSTEM (no dash punctuation, no
+// product URL) most of the time, not always. Getting either wrong isn't worth
+// failing the request over, but it also isn't worth trusting to a stronger
+// sentence in the prompt a third time — verify the output and fix it instead.
 const BANNED_DASH = /[—–]|\s-\s/
+const BANNED_URL = /https?:\/\/\S+|\b[a-z0-9-]+\.(io|com|co|app|net|org|ai|dev|so|xyz|me)\b/i
 
-function stripDashes(text: string) {
+function findViolations(text: string) {
+  const violations: string[] = []
+  if (BANNED_DASH.test(text)) violations.push('dash')
+  if (BANNED_URL.test(text)) violations.push('url')
+  return violations
+}
+
+function describeViolations(violations: string[]) {
+  const notes: string[] = []
+  if (violations.includes('dash')) {
+    notes.push('It used a dash as punctuation, which breaks the rule.')
+  }
+  if (violations.includes('url')) {
+    notes.push('It named the product\'s URL or domain, which also breaks the rule '
+      + '(the one-clause disclosure is the only place the product gets named, no link).')
+  }
+  return `${notes.join(' ')} Rewrite the same comment fixing this. Same content, same length. `
+    + 'Return only the corrected comment.'
+}
+
+function sanitize(text: string) {
   return text
     .replace(/\s+[—–]\s+/g, ', ')
     .replace(/[—–]/g, ',')
     .replace(/\s-\s/g, ', ')
+    // A parenthetical that only exists to hold the URL ("(resunova.io)")
+    // should disappear with it, not leave empty parens behind.
+    .replace(/\s*\([^)]*\b[a-z0-9-]+\.(io|com|co|app|net|org|ai|dev|so|xyz|me)\b[^)]*\)/gi, '')
+    .replace(/https?:\/\/\S+/gi, '')
+    .replace(/\b[a-z0-9-]+\.(io|com|co|app|net|org|ai|dev|so|xyz|me)\b/gi, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\s+([.,])/g, '$1')
+    .trim()
 }
 
 async function callQwen(messages: Array<{ role: string, content: string }>, apiKey: string, baseUrl: string) {
@@ -147,34 +177,31 @@ export async function generateReplyDraft(input: DraftInput, apiKey?: string, bas
       baseUrl!,
     )
 
-    if (!BANNED_DASH.test(first.draft)) {
+    const firstViolations = findViolations(first.draft)
+    if (!firstViolations.length) {
       return first
     }
 
-    // One retry, pointed directly at the violation, before falling back to a
-    // mechanical fix. The retry usually also fixes anything else off about the
-    // draft, since the model sees its own attempt.
+    // One retry, pointed directly at whatever it got wrong, before falling
+    // back to a mechanical fix. The retry usually also cleans up anything else
+    // off about the draft, since the model sees its own attempt.
     const retry = await callQwen(
       [
         { role: 'system', content: SYSTEM },
         { role: 'user', content: userPrompt },
         { role: 'assistant', content: first.draft },
-        {
-          role: 'user',
-          content: 'That used a dash as punctuation, which breaks the rule. Rewrite the same '
-            + 'comment with every dash replaced by a full stop, a comma, or a colon. Same content, '
-            + 'same length. Return only the corrected comment.',
-        },
+        { role: 'user', content: describeViolations(firstViolations) },
       ],
       apiKey,
       baseUrl!,
     )
 
-    if (!BANNED_DASH.test(retry.draft)) {
+    const retryViolations = findViolations(retry.draft)
+    if (!retryViolations.length) {
       return retry
     }
 
-    return { draft: stripDashes(retry.draft), model: retry.model }
+    return { draft: sanitize(retry.draft), model: retry.model }
   } catch (error) {
     throw createError({
       statusCode: 502,

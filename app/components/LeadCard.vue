@@ -76,8 +76,10 @@
 
       <textarea
         v-model="draft"
-        class="input min-h-28 bg-panel"
-        :class="placeholders.length ? 'border-warn/50 focus:border-warn' : ''"
+        class="input min-h-28 bg-panel transition-colors duration-700"
+        :class="justGenerated
+          ? 'border-ok/60 ring-2 ring-ok/30'
+          : (placeholders.length ? 'border-warn/50 focus:border-warn' : '')"
         :readonly="locked"
         placeholder="No draft yet. Hit Generate."
       />
@@ -162,6 +164,7 @@ export default {
       localMode,
       supabase: localMode ? null : useSupabaseClient(),
       me: useMe(),
+      toast: useToasts().push,
     }
   },
 
@@ -177,6 +180,7 @@ export default {
       savedDraft: mine?.body ?? this.lead.reply_draft ?? '',
       drafting: false,
       draftError: '',
+      justGenerated: false,
       copied: false,
       expanded: false,
       busy: false,
@@ -431,6 +435,7 @@ export default {
     },
 
     async generate() {
+      const wasRegenerate = Boolean(this.draft.trim())
       this.drafting = true
       this.draftError = ''
 
@@ -448,6 +453,13 @@ export default {
           // The server already upserted our lead_drafts row.
           this.emitMyDraft()
         }
+
+        this.toast(wasRegenerate ? 'New draft ready.' : 'Draft ready.', { tone: 'success' })
+
+        // Brief flash so the update is obvious even if you weren't looking
+        // right at the textarea when it landed.
+        this.justGenerated = true
+        setTimeout(() => { this.justGenerated = false }, 1500)
       } catch (e) {
         this.draftError = e.data?.statusMessage || e.message
       } finally {
