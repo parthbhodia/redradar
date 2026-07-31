@@ -314,7 +314,7 @@ intentional** — the rename to RedIntelli was user-visible strings only.
 
 | Commit | Change |
 | --- | --- |
-| `c32cdb4` | Selling drafts: no dashes, `[X]` placeholders, steeper freshness decay |
+| `1dd49fc` | Selling drafts: no dashes, `[X]` placeholders, steeper freshness decay |
 | `0427399` | Both limits configurable from env; trigger reads a DB setting |
 | `dd60512` | This file |
 | `006048b` | Remove-a-teammate, releasing their claims first |
