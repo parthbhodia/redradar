@@ -1,4 +1,4 @@
-# RedRadar
+# RedIntelli
 
 Find the Reddit threads where people are already asking for what you sell, score them
 by intent, and draft a reply that won't get you downvoted.
@@ -45,7 +45,7 @@ Local mode stores data in `data/redradar.sqlite`. Discovery prefers
 
 ### 3. Cloud / multi-tenant Supabase
 
-Unset `REDRADAR_LOCAL` and point env at **RedRadar's own** Supabase project
+Unset `REDRADAR_LOCAL` and point env at **RedIntelli's own** Supabase project
 (not Cueful's). Create one at [supabase.com/dashboard](https://supabase.com/dashboard),
 then apply `supabase/migrations/0001_init.sql` (SQL Editor or `supabase db push`).
 

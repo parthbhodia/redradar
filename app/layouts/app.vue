@@ -6,7 +6,7 @@
         <div class="flex items-center gap-6">
           <NuxtLink to="/app" class="flex items-center gap-2.5">
             <RadarMark class="h-6 w-6" />
-            <span class="font-semibold tracking-tight">RedRadar</span>
+            <span class="font-semibold tracking-tight">RedIntelli</span>
           </NuxtLink>
 
           <nav class="flex items-center gap-1">

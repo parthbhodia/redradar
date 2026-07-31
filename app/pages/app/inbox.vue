@@ -76,7 +76,7 @@ import { LEAD_STATUSES } from '#shared/types'
 
 export default {
   setup() {
-    useHead({ title: 'Inbox · RedRadar' })
+    useHead({ title: 'Inbox · RedIntelli' })
     const config = useRuntimeConfig()
     const workspace = useWorkspace()
     return {

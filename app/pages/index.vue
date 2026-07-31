@@ -12,7 +12,7 @@
       <div class="mx-auto mt-9 max-w-2xl space-y-1.5 text-lg text-ink-soft sm:text-xl">
         <p>Reddit threads rank in Google and get quoted back by AI assistants.</p>
         <p>They’re where buyers ask each other what to actually use.</p>
-        <p class="font-medium text-ink">RedRadar finds those threads while the question is still open.</p>
+        <p class="font-medium text-ink">RedIntelli finds those threads while the question is still open.</p>
       </div>
 
       <div class="mt-10 flex flex-wrap items-center justify-center gap-3">
@@ -166,7 +166,7 @@
       </h2>
 
       <p class="mx-auto mt-7 max-w-2xl text-lg leading-relaxed text-ink-soft">
-        Automated replies are why Reddit hates marketers. RedRadar writes a draft from your
+        Automated replies are why Reddit hates marketers. RedIntelli writes a draft from your
         brand’s own voice. It answers the question first, discloses who you are, and
         says when you’re not the right fit. Then it hands it to you. You read it, you edit
         it, you post it. A comment that gets upvoted is worth more than a hundred that get
@@ -196,10 +196,10 @@
 export default {
   setup() {
     useHead({
-      title: 'RedRadar · Find high-intent Reddit threads before they go cold',
+      title: 'RedIntelli · Find high-intent Reddit threads before they go cold',
       meta: [{
         name: 'description',
-        content: 'RedRadar watches Reddit for the threads that match your keywords, scores them by buying intent, and drafts a reply worth posting.',
+        content: 'RedIntelli watches Reddit for the threads that match your keywords, scores them by buying intent, and drafts a reply worth posting.',
       }],
     })
   },

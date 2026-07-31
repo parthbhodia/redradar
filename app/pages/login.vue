@@ -3,7 +3,7 @@
   <div v-if="variant === 'minimal'" class="mx-auto max-w-md px-6 py-20">
     <p class="eyebrow">Sign in</p>
     <h1 class="mt-6 text-4xl font-semibold tracking-tight text-balance">
-      Back to the radar.
+      Back to the inbox.
     </h1>
     <p class="mt-3 text-ink-soft">
       {{ localMode
@@ -21,7 +21,7 @@
     <div class="mx-auto w-full max-w-md">
       <p class="eyebrow">Sign in</p>
       <h1 class="mt-6 text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-        Back to the radar.
+        Back to the inbox.
         <span class="accent-line mt-1.5 block font-normal">The threads don’t wait.</span>
       </h1>
       <p class="mt-4 text-ink-soft">
@@ -77,7 +77,7 @@
 <script>
 export default {
   setup() {
-    useHead({ title: 'Sign in · RedRadar' })
+    useHead({ title: 'Sign in · RedIntelli' })
     const config = useRuntimeConfig()
     return {
       localMode: config.public.localMode,

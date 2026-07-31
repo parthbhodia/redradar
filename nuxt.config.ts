@@ -28,7 +28,7 @@ export default defineNuxtConfig({
     cronSecret: process.env.CRON_SECRET || '',
     redditClientId: process.env.REDDIT_CLIENT_ID || '',
     redditClientSecret: process.env.REDDIT_CLIENT_SECRET || '',
-    redditUserAgent: process.env.REDDIT_USER_AGENT || 'redradar/0.1 (lead discovery)',
+    redditUserAgent: process.env.REDDIT_USER_AGENT || 'redintelli/0.1 (lead discovery)',
     public: {
       localMode,
     },
@@ -38,7 +38,7 @@ export default defineNuxtConfig({
     head: {
       htmlAttrs: { lang: 'en' },
       link: [{ rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
-      title: 'RedRadar',
+      title: 'RedIntelli',
     },
   },
 })

@@ -45,7 +45,7 @@ const SCHEMA = {
   additionalProperties: false,
 } as const
 
-const SYSTEM = `You propose Reddit search phrases for RedRadar, which runs each phrase through
+const SYSTEM = `You propose Reddit search phrases for RedIntelli, which runs each phrase through
 Reddit search and scores the threads it finds.
 
 These are search queries against post titles and bodies — not SEO keywords and not ad

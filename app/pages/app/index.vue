@@ -284,7 +284,7 @@
 <script>
 export default {
   setup() {
-    useHead({ title: 'Setup · RedRadar' })
+    useHead({ title: 'Setup · RedIntelli' })
     const config = useRuntimeConfig()
     const workspace = useWorkspace()
     return {

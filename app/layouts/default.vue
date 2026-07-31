@@ -5,7 +5,7 @@
       <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
         <NuxtLink to="/" class="flex items-center gap-2.5">
           <RadarMark class="h-7 w-7 text-ink" />
-          <span class="text-lg font-semibold tracking-tight">RedRadar</span>
+          <span class="text-lg font-semibold tracking-tight">RedIntelli</span>
         </NuxtLink>
 
         <nav class="flex items-center gap-2">
@@ -29,7 +29,7 @@
 
     <footer class="rule-dashed mt-24">
       <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-10 text-sm text-ink-soft">
-        <span>RedRadar. Reddit lead discovery with AI reply drafts.</span>
+        <span>RedIntelli. Reddit lead discovery with AI reply drafts.</span>
         <NuxtLink to="/login" class="hover:text-ink">Sign in</NuxtLink>
       </div>
     </footer>

@@ -47,7 +47,7 @@ const SCHEMA = {
   additionalProperties: false,
 } as const
 
-const SYSTEM = `You write brand profiles for RedRadar, a tool that finds high-intent Reddit
+const SYSTEM = `You write brand profiles for RedIntelli, a tool that finds high-intent Reddit
 threads and drafts replies. This profile is not marketing copy — it is the context an LLM
 uses to write Reddit comments, and it is matched against thread text to score leads. Write
 for that job.
