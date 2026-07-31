@@ -303,11 +303,18 @@ intentional** — the rename to RedIntelli was user-visible strings only.
 
       What each rejection meant:
 
-      1. *"homepage URL is not registered to you"* — domain ownership isn't
-         verified. Fix in **Google Search Console**, signed in as the same
-         account that owns the Cloud project: add a **Domain** property for
-         `redintelli.com` (DNS TXT via Cloudflare). A Domain property covers
-         apex and `www` together; a URL-prefix property would not.
+      1. ~~*"homepage URL is not registered to you"*~~ — resolved. Domain
+         ownership was verified in **Google Search Console** with a **Domain**
+         property for `redintelli.com` (DNS TXT via Cloudflare), signed in as
+         the account that owns the Cloud project. A Domain property covers apex
+         and `www` together; a URL-prefix property would not.
+
+      **The homepage URL must be the `www` form.** Vercel treats `www` as
+      primary and 308-redirects the apex, so `https://redintelli.com` returns a
+      15-byte plain-text redirect body containing the app name zero times.
+      Google's checker evaluates whatever the configured URL returns, so an apex
+      homepage re-triggers findings 2 *and* 3 no matter what the page says — the
+      content is never read. This looks like a content problem and isn't.
       2. *"homepage does not explain the purpose of your app"* — fixed in code.
          The `#about` section on the landing page now states plainly what the
          app does **and** what Google data it uses. Google wants both on the
