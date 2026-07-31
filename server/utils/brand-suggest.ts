@@ -30,7 +30,7 @@ const SCHEMA = {
     },
     voice: {
       type: 'string',
-      description: 'How replies should sound on Reddit, including when to admit it is not the right fit.',
+      description: 'How replies should sell on Reddit: the angle that persuades, the strongest claim, and how to position against competitors.',
     },
     competitors: {
       type: 'array',
@@ -61,9 +61,10 @@ Rules that matter more than polish:
   Record every inference in "assumptions" so the user can correct it.
 - "tagline" states the problem the product solves, in the customer's words — not a slogan.
 - "description" covers what it does and who it's for. Concrete over clever.
-- "voice" is instructions for the reply writer: tone, what to avoid, and the conditions
-  under which it should tell someone the product is NOT the right fit. Include any domain
-  myths that would get a reply downvoted if repeated.
+- "voice" is instructions for the reply writer, which sells the product in Reddit
+  threads: the angle that persuades this audience, the single strongest true claim, and
+  how to position against the named competitors. Include any domain myth that would get
+  a reply fact-checked and buried if repeated, since that costs the sale.
 - "competitors" are the names people actually say in the relevant subreddits, including
   ones mentioned as complaints — those are good threads to be in. Not market leaders by
   revenue. These strings get substring-matched against thread text, so use the common

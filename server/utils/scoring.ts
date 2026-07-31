@@ -141,6 +141,9 @@ export function scoreLead(post: RedditPost, phrase: string, brand?: Pick<Brand, 
   }
 
   // --- freshness -----------------------------------------------------------
+  // A thread's value decays fast, and the old curve was flat between one week
+  // and one month: an 8-day thread scored the same as a 29-day one and could
+  // still top the inbox. Replying that late lands under everything.
   const age = hoursSince(post.createdAt)
   if (age <= 24) {
     score += 15
@@ -151,8 +154,14 @@ export function scoreLead(post: RedditPost, phrase: string, brand?: Pick<Brand, 
   } else if (age <= 24 * 7) {
     score += 5
     signals.push('posted this week')
-  } else if (age > 24 * 30) {
-    score -= 10
+  } else if (age <= 24 * 14) {
+    score -= 8
+    signals.push('over a week old')
+  } else if (age <= 24 * 30) {
+    score -= 15
+    signals.push('over two weeks old')
+  } else {
+    score -= 25
     signals.push('older than a month')
   }
 

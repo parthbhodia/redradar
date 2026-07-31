@@ -194,6 +194,34 @@ false positives, all fixed: `\bor\b.*\?` matching any question containing "or",
 no relevance gate, `\bneed a\b` being too generic, a single-token keyword hole,
 and `u/` profile pages being ingested.
 
+Freshness used to be flat between one week and one month, so an 8-day thread
+scored the same as a 29-day one and could top the inbox. It now decays: −8 over
+a week, −15 over two, −25 over a month. **Leads scored before 2026-07-31 still
+carry the old flat curve** and will read high until a rescan re-scores them.
+
+### 3.12 Draft tone lives in the database, not the prompt
+
+`server/utils/llm.ts` has no template fallback. A missing key, a retired model
+ID or an API error throws, because a canned draft posing as AI output is how
+nobody notices the pipeline is broken. That fallback existed and hid a 404 on a
+retired model for days.
+
+The system prompt sets the register (sell, name the product, close with a next
+step) and two mechanical rules: **no dashes as punctuation** (the clearest tell
+of AI text on Reddit; hyphens inside compound words are fine) and **bracketed
+`[X]` placeholders instead of invented figures**, for the poster to fill in.
+
+`brands.voice` outranks the system prompt whenever the two disagree, because it
+is more specific. It is the lever for tone. Both times draft tone was wrong the
+fix was in `voice`, not in `llm.ts` — the prompt asked for placeholders for a
+full round with none appearing until `voice` also asked for a proof point.
+
+Disclosure ("i work on X", one clause) stays in the prompt deliberately. Reddit
+removes undisclosed promotion and bans the account, and in the US an undisclosed
+material connection is an FTC violation under 16 CFR Part 255. If this needs to
+move, the shape is an account-level disclosure setting or drafts that never name
+the product, not silent removal.
+
 ---
 
 ## 4. Migrations
@@ -228,7 +256,7 @@ gitignored except `.env.example`.
 | --- | --- |
 | `SUPABASE_URL` / `SUPABASE_KEY` | RedIntelli's own project — **not** Cueful's |
 | `NUXT_SUPABASE_SECRET_KEY` | service role; server-only |
-| `ANTHROPIC_API_KEY` | drafts fall back to a template if unset |
+| `ANTHROPIC_API_KEY` | required for drafts; unset returns a 503, see §3.12 |
 | `ADMIN_EMAILS` | scan-limit exemption; **must be set on Vercel or you rate-limit yourself in production** |
 | `MAX_ORG_MEMBERS` | seats per workspace, default 3. App layer only — the DB trigger needs its own setting, see §2 |
 | `DAILY_SCAN_LIMIT` | manual scans per user per day, default 3 |
@@ -286,6 +314,7 @@ intentional** — the rename to RedIntelli was user-visible strings only.
 
 | Commit | Change |
 | --- | --- |
+| `c32cdb4` | Selling drafts: no dashes, `[X]` placeholders, steeper freshness decay |
 | `0427399` | Both limits configurable from env; trigger reads a DB setting |
 | `dd60512` | This file |
 | `006048b` | Remove-a-teammate, releasing their claims first |
