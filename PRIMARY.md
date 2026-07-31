@@ -260,8 +260,18 @@ intentional** — the rename to RedIntelli was user-visible strings only.
       that also collapses the two knobs in §2 back into one.
 - [ ] **Rotate two credentials that were pasted into a chat transcript**: the
       Supabase `sb_secret_…` key and the Google OAuth client secret.
-- [ ] Google Branding: app name, privacy URL, terms URL (needed for OAuth
-      verification; `/privacy` and `/terms` exist).
+- [ ] Google Branding, needed for OAuth verification. All three verified live
+      and publicly reachable (200, no auth wall — Google fetches them signed
+      out). Use the `www` form throughout; mixing apex and `www` across Google,
+      Supabase and Vercel is what caused the earlier `redirect_uri_mismatch`.
+
+      | Field | Value |
+      | --- | --- |
+      | App name | `RedIntelli` |
+      | Home page | `https://www.redintelli.com` |
+      | Privacy policy | `https://www.redintelli.com/privacy` |
+      | Terms of service | `https://www.redintelli.com/terms` |
+      | Authorized domain | `redintelli.com` |
 - [ ] Landing page direction unresolved — a Cueful-style image-tile treatment was
       floated and dropped. Current page stands.
 - [ ] The landing stat band has no real numbers behind it. Wiring it to live DB
