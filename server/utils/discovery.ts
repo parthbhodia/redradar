@@ -15,10 +15,23 @@ export interface KeywordRow {
   subreddit_filter: string | null
 }
 
+/** Per-keyword outcome for one scan, recorded in scan_run_keywords. */
+export interface KeywordOutcome {
+  phrase: string
+  subreddit_filter: string | null
+  /** Threads Reddit returned for this phrase. */
+  scanned: number
+  /** Threads that survived filtering and won their dedupe against other keywords. */
+  matched: number
+  top_score: number | null
+  error: string | null
+}
+
 export interface CollectResult {
   candidates: Candidate[]
   scanned: number
   errors: string[]
+  perKeyword: KeywordOutcome[]
 }
 
 /**
@@ -33,9 +46,20 @@ export async function collectCandidates(
 ): Promise<CollectResult> {
   const errors: string[] = []
   const best = new Map<string, Candidate>()
+  const perKeyword: KeywordOutcome[] = []
   let scanned = 0
 
   for (const keyword of keywords) {
+    const outcome: KeywordOutcome = {
+      phrase: keyword.phrase,
+      subreddit_filter: keyword.subreddit_filter,
+      scanned: 0,
+      matched: 0,
+      top_score: null,
+      error: null,
+    }
+    perKeyword.push(outcome)
+
     let posts: RedditPost[]
     try {
       posts = await reddit.search({
@@ -46,11 +70,14 @@ export async function collectCandidates(
         limit,
       })
     } catch (error) {
-      errors.push(`"${keyword.phrase}": ${(error as Error).message}`)
+      const message = (error as Error).message
+      outcome.error = message
+      errors.push(`"${keyword.phrase}": ${message}`)
       continue
     }
 
     scanned += posts.length
+    outcome.scanned = posts.length
 
     for (const post of posts) {
       // `u/Someone` is a user profile page, not a community. Reddit search
@@ -58,6 +85,10 @@ export async function collectCandidates(
       if (/^u[/_]/i.test(post.subreddit ?? '')) continue
 
       const { score, signals } = scoreLead(post, keyword.phrase, brand)
+      if (outcome.top_score === null || score > outcome.top_score) {
+        outcome.top_score = score
+      }
+
       const existing = best.get(post.id)
       if (!existing || score > existing.score) {
         best.set(post.id, { post, score, signals, keyword: keyword.phrase })
@@ -65,13 +96,26 @@ export async function collectCandidates(
     }
   }
 
-  return { candidates: [...best.values()], scanned, errors }
+  // Attribute each surviving candidate to the keyword that actually won it,
+  // so `matched` sums to the candidate count rather than double-counting
+  // threads several keywords found.
+  const wonBy = new Map<string, number>()
+  for (const c of best.values()) {
+    wonBy.set(c.keyword, (wonBy.get(c.keyword) ?? 0) + 1)
+  }
+  for (const outcome of perKeyword) {
+    outcome.matched = wonBy.get(outcome.phrase) ?? 0
+  }
+
+  return { candidates: [...best.values()], scanned, errors, perKeyword }
 }
 
 export interface UpsertResult {
   inserted: number
   updated: number
   errors: string[]
+  /** inserted/updated split per keyword, for scan_run_keywords. */
+  byKeyword: Map<string, { inserted: number, updated: number }>
 }
 
 /**
@@ -85,9 +129,15 @@ export async function upsertCandidates(
   candidates: Candidate[],
 ): Promise<UpsertResult> {
   const errors: string[] = []
+  const byKeyword = new Map<string, { inserted: number, updated: number }>()
+  const bump = (keyword: string, field: 'inserted' | 'updated') => {
+    const row = byKeyword.get(keyword) ?? { inserted: 0, updated: 0 }
+    row[field] += 1
+    byKeyword.set(keyword, row)
+  }
 
   if (!candidates.length) {
-    return { inserted: 0, updated: 0, errors }
+    return { inserted: 0, updated: 0, errors, byKeyword }
   }
 
   const { data: existingRows, error: existingError } = await admin
@@ -131,6 +181,7 @@ export async function upsertCandidates(
       throw new Error(insertError.message)
     }
     inserted = count ?? toInsert.length
+    for (const c of toInsert) bump(c.keyword, 'inserted')
   }
 
   let updated = 0
@@ -151,7 +202,8 @@ export async function upsertCandidates(
       continue
     }
     updated += 1
+    bump(c.keyword, 'updated')
   }
 
-  return { inserted, updated, errors }
+  return { inserted, updated, errors, byKeyword }
 }

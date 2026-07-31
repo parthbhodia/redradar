@@ -152,6 +152,91 @@
           </ul>
         </section>
       </div>
+
+      <!-- Scan history. Hidden entirely until migration 0005 is applied, and in
+           local mode, which keeps no run history. -->
+      <div v-if="scanRuns.length || keywordPerf.length" class="grid gap-5 lg:grid-cols-2">
+        <section class="card">
+          <h2 class="font-medium">Recent scans</h2>
+          <p class="mt-1 mb-4 text-sm text-mute">
+            Manual and scheduled runs. A failed run is the only way you'd know a
+            scheduled scan didn't happen.
+          </p>
+
+          <table v-if="scanRuns.length" class="w-full text-sm">
+            <caption class="sr-only">The last ten scans for this campaign</caption>
+            <thead>
+              <tr class="text-xs tracking-wide text-mute uppercase">
+                <th scope="col" class="pb-2 text-left font-medium">When</th>
+                <th scope="col" class="pb-2 text-left font-medium">Trigger</th>
+                <th scope="col" class="pb-2 text-right font-medium">New</th>
+                <th scope="col" class="pb-2 text-right font-medium">Seen</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="run in scanRuns" :key="run.id" class="border-t border-line/60">
+                <td class="py-2">
+                  <span class="flex items-center gap-2">
+                    <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="runDot(run)" aria-hidden="true" />
+                    {{ timeAgo(run.started_at) }}
+                  </span>
+                  <span v-if="run.status !== 'ok'" class="mt-0.5 block text-xs" :class="run.status === 'failed' ? 'text-signal-soft' : 'text-warn'">
+                    {{ runNote(run) }}
+                  </span>
+                </td>
+                <td class="py-2 text-mute capitalize">{{ run.trigger }}</td>
+                <td class="py-2 text-right font-mono tabular-nums" :class="run.inserted ? 'text-signal' : 'text-mute'">
+                  {{ run.inserted }}
+                </td>
+                <td class="py-2 text-right font-mono text-mute tabular-nums">{{ run.scanned }}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p v-else class="text-sm text-mute">No scans recorded yet.</p>
+        </section>
+
+        <section class="card">
+          <h2 class="font-medium">Keyword yield</h2>
+          <p class="mt-1 mb-4 text-sm text-mute">
+            Lifetime, across every scan. A phrase with no leads after a few runs
+            is costing you a request and returning nothing.
+          </p>
+
+          <table v-if="keywordPerf.length" class="w-full text-sm">
+            <caption class="sr-only">Lifetime scan yield per keyword</caption>
+            <thead>
+              <tr class="text-xs tracking-wide text-mute uppercase">
+                <th scope="col" class="pb-2 text-left font-medium">Keyword</th>
+                <th scope="col" class="pb-2 text-right font-medium">Runs</th>
+                <th scope="col" class="pb-2 text-right font-medium">Seen</th>
+                <th scope="col" class="pb-2 text-right font-medium">Leads</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in keywordPerf" :key="row.phrase" class="border-t border-line/60">
+                <td class="py-2 pr-3">
+                  <span class="block truncate">{{ row.phrase }}</span>
+                  <span v-if="isDeadKeyword(row)" class="text-xs text-warn">
+                    no leads in {{ row.runs }} runs
+                  </span>
+                  <span v-else-if="row.failed_runs" class="text-xs text-signal-soft">
+                    errored in {{ row.failed_runs }} of {{ row.runs }}
+                  </span>
+                </td>
+                <td class="py-2 text-right font-mono text-mute tabular-nums">{{ row.runs }}</td>
+                <td class="py-2 text-right font-mono text-mute tabular-nums">{{ row.threads_seen }}</td>
+                <td
+                  class="py-2 text-right font-mono tabular-nums"
+                  :class="row.leads_new ? 'text-signal' : 'text-warn'"
+                >{{ row.leads_new }}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p v-else class="text-sm text-mute">Run a scan and this fills in.</p>
+        </section>
+      </div>
     </template>
   </div>
 </template>
@@ -175,6 +260,8 @@ export default {
       leads: [],
       loading: true,
       error: '',
+      scanRuns: [],
+      keywordPerf: [],
     }
   },
 
@@ -303,6 +390,34 @@ export default {
   },
 
   methods: {
+    timeAgo(stamp) {
+      if (!stamp) return 'unknown'
+      const hours = (Date.now() - new Date(stamp).getTime()) / 3_600_000
+      if (hours < 1) return `${Math.max(1, Math.round(hours * 60))}m ago`
+      if (hours < 24) return `${Math.round(hours)}h ago`
+      const days = Math.round(hours / 24)
+      return days === 1 ? 'yesterday' : `${days}d ago`
+    },
+
+    runDot(run) {
+      if (run.status === 'failed') return 'bg-signal'
+      if (run.status === 'partial') return 'bg-warn'
+      if (run.status === 'running') return 'bg-mute'
+      return 'bg-ok'
+    },
+
+    runNote(run) {
+      if (run.status === 'failed') return run.error_message || 'Failed'
+      if (run.status === 'running') return 'Still running, or the process died'
+      const count = run.errors?.length ?? 0
+      return `${count} keyword${count === 1 ? '' : 's'} errored`
+    },
+
+    // One barren run is noise; several means the phrase is genuinely dead.
+    isDeadKeyword(row) {
+      return !row.leads_new && (row.runs ?? 0) >= 2
+    },
+
     async loadLeads() {
       this.loading = true
 
@@ -327,6 +442,35 @@ export default {
       } finally {
         this.loading = false
       }
+
+      await this.loadScanHistory()
+    },
+
+    /**
+     * Scan history lives in scan_runs / keyword_performance (migration 0005).
+     * Absent before that migration, and absent in local mode, so a failure here
+     * hides the panel rather than breaking the dashboard.
+     */
+    async loadScanHistory() {
+      if (this.localMode || !this.activeCampaignId) return
+
+      const [runs, perf] = await Promise.all([
+        this.supabase
+          .from('scan_runs')
+          .select('id, trigger, status, started_at, finished_at, keywords, scanned, inserted, updated, errors, error_message')
+          .eq('campaign_id', this.activeCampaignId)
+          .order('started_at', { ascending: false })
+          .limit(10),
+        this.supabase
+          .from('keyword_performance')
+          .select('phrase, runs, last_run_at, threads_seen, leads_new, best_score, failed_runs')
+          .eq('campaign_id', this.activeCampaignId),
+      ])
+
+      this.scanRuns = runs.error ? [] : (runs.data ?? [])
+      this.keywordPerf = perf.error
+        ? []
+        : [...(perf.data ?? [])].sort((a, b) => (b.leads_new ?? 0) - (a.leads_new ?? 0))
     },
   },
 }

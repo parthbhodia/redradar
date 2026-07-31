@@ -36,6 +36,18 @@
       brigading, so coordinate before posting.
     </p>
 
+    <!-- Same Reddit thread, different campaign. Claiming is per-row, so without
+         this the twin looks free even though a teammate is already on it. -->
+    <p
+      v-if="claimedElsewhere"
+      class="mt-3 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-xs text-warn"
+    >
+      Also in the “{{ claimedElsewhere.sibling_campaign_name }}” campaign, where
+      {{ claimedElsewhere.sibling_assigned_name || 'someone' }}
+      {{ claimedElsewhere.sibling_status === 'replied' ? 'has already replied' : 'has claimed it' }}.
+      Same thread, so only one of you should post.
+    </p>
+
     <div v-if="lead.signals?.length" class="mt-3 flex flex-wrap gap-1.5">
       <span v-for="signal in lead.signals" :key="signal" class="chip">{{ signal }}</span>
     </div>
@@ -183,6 +195,13 @@ export default {
 
     locked() {
       return Boolean(this.assigned && !this.claimedByMe)
+    },
+
+    // Attached by the inbox from the lead_thread_claims view. Suppressed when
+    // this row is already claimed, since the banner above says the same thing.
+    claimedElsewhere() {
+      if (this.assigned) return null
+      return this.lead.claimed_elsewhere ?? null
     },
 
     claimedAgo() {

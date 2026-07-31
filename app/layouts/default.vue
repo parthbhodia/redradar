@@ -30,7 +30,11 @@
     <footer class="rule-dashed mt-24">
       <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-10 text-sm text-ink-soft">
         <span>RedIntelli. Reddit lead discovery with AI reply drafts.</span>
-        <NuxtLink to="/login" class="hover:text-ink">Sign in</NuxtLink>
+        <nav class="flex flex-wrap items-center gap-5">
+          <NuxtLink to="/privacy" class="hover:text-ink">Privacy</NuxtLink>
+          <NuxtLink to="/terms" class="hover:text-ink">Terms</NuxtLink>
+          <NuxtLink to="/login" class="hover:text-ink">Sign in</NuxtLink>
+        </nav>
       </div>
     </footer>
   </div>

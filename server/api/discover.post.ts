@@ -3,6 +3,7 @@ import { collectCandidates, upsertCandidates } from '../utils/discovery'
 import { requireCampaign } from '../utils/guard'
 import { isLocalMode, listKeywords, upsertLeads } from '../utils/local-db'
 import { createRedditAdapter } from '../utils/reddit'
+import { failScanRun, finishScanRun, startScanRun } from '../utils/scan-runs'
 
 export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
   const body = await readBody<DiscoverRequest>(event)
@@ -10,7 +11,7 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
     throw createError({ statusCode: 400, statusMessage: 'campaignId is required.' })
   }
 
-  const { client, campaign, brand, local } = await requireCampaign(event, body.campaignId)
+  const { client, campaign, brand, local, user } = await requireCampaign(event, body.campaignId)
 
   let keywords: Array<{ phrase: string, subreddit_filter: string | null }>
   if (local) {
@@ -42,13 +43,46 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
   })
 
   const limit = Math.min(Math.max(body.limit ?? 25, 1), 100)
-  const { candidates, scanned, errors } = await collectCandidates(keywords, brand, reddit, limit)
+
+  // Local mode keeps its own SQLite store and has no scan history.
+  const cloud = !(local || isLocalMode())
+  const admin = cloud
+    ? (await import('#supabase/server')).serverSupabaseServiceRole(event)
+    : null
+
+  // Opened before touching Reddit, so a scan that dies mid-flight is still
+  // visible as `running` instead of leaving no trace.
+  const runId = admin
+    ? await startScanRun(admin, campaign.id, { trigger: 'manual', triggeredBy: user?.id ?? null })
+    : null
+
+  let collected
+  try {
+    collected = await collectCandidates(keywords, brand, reddit, limit)
+  } catch (error) {
+    if (admin) await failScanRun(admin, runId, (error as Error).message)
+    throw createError({ statusCode: 502, statusMessage: (error as Error).message })
+  }
+
+  const { candidates, scanned, errors, perKeyword } = collected
 
   if (!candidates.length) {
+    if (admin) {
+      await finishScanRun(admin, runId, {
+        keywords: keywords.length,
+        scanned,
+        inserted: 0,
+        updated: 0,
+        skipped: 0,
+        errors,
+        perKeyword,
+        byKeyword: new Map(),
+      })
+    }
     return { scanned, inserted: 0, updated: 0, skipped: 0, keywords: keywords.length, errors }
   }
 
-  if (local || isLocalMode()) {
+  if (!admin) {
     const result = upsertLeads(
       campaign.id,
       candidates.map(c => ({
@@ -74,20 +108,31 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
     }
   }
 
-  const { serverSupabaseServiceRole } = await import('#supabase/server')
-  const admin = serverSupabaseServiceRole(event)
-
   try {
     const result = await upsertCandidates(admin, campaign.id, candidates)
+    const allErrors = [...errors, ...result.errors]
+
+    await finishScanRun(admin, runId, {
+      keywords: keywords.length,
+      scanned,
+      inserted: result.inserted,
+      updated: result.updated,
+      skipped: scanned - candidates.length,
+      errors: allErrors,
+      perKeyword,
+      byKeyword: result.byKeyword,
+    })
+
     return {
       scanned,
       inserted: result.inserted,
       updated: result.updated,
       skipped: scanned - candidates.length,
       keywords: keywords.length,
-      errors: [...errors, ...result.errors],
+      errors: allErrors,
     }
   } catch (error) {
+    await failScanRun(admin, runId, (error as Error).message)
     throw createError({ statusCode: 500, statusMessage: (error as Error).message })
   }
 })

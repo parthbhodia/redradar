@@ -162,12 +162,37 @@ export default {
 
           if (error) this.error = error.message
           else this.leads = data ?? []
+
+          await this.attachSiblingClaims()
         }
       } catch (e) {
         this.error = e.data?.statusMessage || e.message
       }
 
       this.loading = false
+    },
+
+    /**
+     * The same Reddit thread can exist as a lead row in several campaigns, and
+     * claiming is per-row. Without this, a thread a teammate is already working
+     * in another campaign looks unclaimed here.
+     */
+    async attachSiblingClaims() {
+      if (!this.leads.length) return
+
+      const { data, error } = await this.supabase
+        .from('lead_thread_claims')
+        .select('lead_id, sibling_campaign_name, sibling_assigned_name, sibling_status')
+        .in('lead_id', this.leads.map(l => l.id))
+
+      // Pre-0004 the view doesn't exist; the inbox is still fully usable.
+      if (error || !data?.length) return
+
+      const byLead = new Map(data.map(row => [row.lead_id, row]))
+      for (const lead of this.leads) {
+        const sibling = byLead.get(lead.id)
+        if (sibling) lead.claimed_elsewhere = sibling
+      }
     },
 
     applyUpdate({ id, patch }) {

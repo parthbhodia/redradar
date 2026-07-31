@@ -1,5 +1,6 @@
 import { collectCandidates, upsertCandidates } from '../../utils/discovery'
 import { createRedditAdapter } from '../../utils/reddit'
+import { failScanRun, finishScanRun, startScanRun } from '../../utils/scan-runs'
 
 /**
  * Scans every active campaign. No user session: this is the scheduled entry
@@ -50,18 +51,37 @@ export default defineEventHandler(async (event) => {
 
     if (!keywords?.length) continue
 
+    // Nobody is watching a 3am run, so the run row is the only report.
+    const runId = await startScanRun(admin, campaign.id, { trigger: 'scheduled' })
+
     try {
-      const { candidates, scanned, errors } = await collectCandidates(keywords, brand, reddit, 25)
-      const { inserted, updated, errors: upsertErrors } = await upsertCandidates(admin, campaign.id, candidates)
+      const { candidates, scanned, errors, perKeyword } = await collectCandidates(keywords, brand, reddit, 25)
+      const upsert = await upsertCandidates(admin, campaign.id, candidates)
+      const allErrors = [...errors, ...upsert.errors]
+
+      await finishScanRun(admin, runId, {
+        keywords: keywords.length,
+        scanned,
+        inserted: upsert.inserted,
+        updated: upsert.updated,
+        skipped: scanned - candidates.length,
+        errors: allErrors,
+        perKeyword,
+        byKeyword: upsert.byKeyword,
+      })
+
       results.push({
         campaign: campaign.name,
+        runId,
         scanned,
-        inserted,
-        updated,
-        errors: [...errors, ...upsertErrors],
+        inserted: upsert.inserted,
+        updated: upsert.updated,
+        errors: allErrors,
       })
     } catch (scanError) {
-      results.push({ campaign: campaign.name, error: (scanError as Error).message })
+      const message = (scanError as Error).message
+      await failScanRun(admin, runId, message)
+      results.push({ campaign: campaign.name, runId, error: message })
     }
   }
 

@@ -117,6 +117,57 @@
   }
 
   /* The signature line: bold sans, then serif italic in the accent colour. */
+  /* Long-form legal copy. Kept narrow and generously leaded; these pages get
+     read under duress, so readability beats density. */
+  .prose-legal {
+    @apply text-ink-soft;
+  }
+
+  .prose-legal .lead {
+    @apply text-lg leading-relaxed text-ink;
+  }
+
+  .prose-legal h2 {
+    @apply mt-12 mb-3 text-2xl font-semibold tracking-tight text-ink;
+  }
+
+  .prose-legal h3 {
+    @apply mt-7 mb-2 text-base font-medium text-ink;
+  }
+
+  .prose-legal p {
+    @apply my-4 leading-relaxed;
+  }
+
+  .prose-legal ul {
+    @apply my-4 space-y-2 pl-5;
+    list-style: disc;
+  }
+
+  .prose-legal li {
+    @apply leading-relaxed;
+  }
+
+  .prose-legal strong {
+    @apply font-medium text-ink;
+  }
+
+  .prose-legal code {
+    @apply rounded bg-card px-1.5 py-0.5 font-mono text-sm text-ink;
+  }
+
+  .prose-legal a {
+    @apply text-ink underline decoration-rule underline-offset-4 hover:decoration-ink;
+  }
+
+  .prose-legal .not-prose {
+    @apply text-ink;
+  }
+
+  .font-display {
+    font-family: var(--font-display);
+  }
+
   .accent-line {
     font-family: var(--font-display);
     @apply text-signal italic;
