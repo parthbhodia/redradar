@@ -256,7 +256,8 @@ gitignored except `.env.example`.
 | --- | --- |
 | `SUPABASE_URL` / `SUPABASE_KEY` | RedIntelli's own project — **not** Cueful's |
 | `NUXT_SUPABASE_SECRET_KEY` | service role; server-only |
-| `ANTHROPIC_API_KEY` | required for drafts; unset returns a 503, see §3.12 |
+| `QWEN_API_KEY` | Qwen turbo (via Alibaba DashScope) for reply drafts; unset returns 503 |
+| `ANTHROPIC_API_KEY` | (deprecated for drafts; kept for brand-suggest and keyword-suggest) |
 | `ADMIN_EMAILS` | scan-limit exemption; **must be set on Vercel or you rate-limit yourself in production** |
 | `MAX_ORG_MEMBERS` | seats per workspace, default 3. App layer only — the DB trigger needs its own setting, see §2 |
 | `DAILY_SCAN_LIMIT` | manual scans per user per day, default 3 |

@@ -30,6 +30,7 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
+    qwenApiKey: process.env.QWEN_API_KEY || '',
     cronSecret: process.env.CRON_SECRET || '',
     // Comma-separated emails exempt from the daily scan limit. Kept in config
     // rather than source: this repo is public.

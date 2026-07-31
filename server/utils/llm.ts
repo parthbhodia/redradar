@@ -1,7 +1,7 @@
-import Anthropic from '@anthropic-ai/sdk'
 import type { Brand, Lead } from '#shared/types'
 
-const MODEL = 'claude-opus-5'
+const MODEL = 'qwen-turbo'
+const QWEN_ENDPOINT = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
 
 export interface DraftInput {
   brand: Pick<Brand, 'name' | 'tagline' | 'description' | 'voice' | 'competitors'>
@@ -89,54 +89,48 @@ function buildPrompt(input: DraftInput) {
 
 export async function generateReplyDraft(input: DraftInput, apiKey?: string) {
   if (!apiKey) {
-    // No canned fallback: fake drafts posing as AI output is how nobody notices
-    // the pipeline is broken. Fail loudly instead.
     throw createError({
       statusCode: 503,
-      statusMessage: 'Set ANTHROPIC_API_KEY to generate drafts.',
+      statusMessage: 'Set QWEN_API_KEY to generate drafts.',
     })
   }
 
-  const client = new Anthropic({ apiKey, timeout: 120_000 })
-
-  let response: Anthropic.Beta.BetaMessage
   try {
-    response = await client.beta.messages.create({
-      model: MODEL,
-      // Thinking is on by default on Opus 5 and shares this budget with the
-      // reply text, so it is far larger than the comment itself needs.
-      max_tokens: 16000,
-      system: SYSTEM,
-      output_config: { effort: 'medium' },
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-      messages: [{ role: 'user', content: buildPrompt(input) }],
-    })
+    const response = await $fetch(QWEN_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: {
+        model: MODEL,
+        max_tokens: 2000,
+        temperature: 0.7,
+        messages: [
+          { role: 'system', content: SYSTEM },
+          { role: 'user', content: buildPrompt(input) },
+        ],
+      },
+      timeout: 120_000,
+    }) as {
+      choices: Array<{ message: { content: string } }>
+      model: string
+    }
+
+    if (!response.choices?.[0]?.message?.content) {
+      throw createError({
+        statusCode: 502,
+        statusMessage: 'Empty draft returned.',
+      })
+    }
+
+    const draft = response.choices[0].message.content.trim()
+
+    return { draft, model: response.model || MODEL }
   } catch (error) {
-    // Surface the real reason (bad key, model access, network) to the UI
-    // instead of quietly shipping a template.
     throw createError({
       statusCode: 502,
       statusMessage: `Draft generation failed: ${(error as Error).message}`,
     })
   }
-
-  if (response.stop_reason === 'refusal') {
-    throw createError({
-      statusCode: 422,
-      statusMessage: 'The model declined to draft a reply for this thread.',
-    })
-  }
-
-  const draft = response.content
-    .filter(block => block.type === 'text')
-    .map(block => block.text)
-    .join('\n')
-    .trim()
-
-  if (!draft) {
-    throw createError({ statusCode: 502, statusMessage: 'Empty draft returned.' })
-  }
-
-  return { draft, model: response.model }
 }

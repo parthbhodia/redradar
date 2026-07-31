@@ -9,7 +9,7 @@ export default defineEventHandler(async (event): Promise<DraftResponse> => {
     throw createError({ statusCode: 400, statusMessage: 'leadId is required.' })
   }
 
-  const { anthropicApiKey } = useRuntimeConfig(event)
+  const { qwenApiKey } = useRuntimeConfig(event)
   const { client, local, user } = await requireUserClient(event)
 
   if (local) {
@@ -29,7 +29,7 @@ export default defineEventHandler(async (event): Promise<DraftResponse> => {
         instruction: body.instruction,
         previousDraft: lead.reply_draft || undefined,
       },
-      anthropicApiKey || undefined,
+      qwenApiKey || undefined,
     )
 
     updateLead(lead.id, { reply_draft: draft })
@@ -69,7 +69,7 @@ export default defineEventHandler(async (event): Promise<DraftResponse> => {
       instruction: body.instruction,
       previousDraft: existingDraft?.body || undefined,
     },
-    anthropicApiKey || undefined,
+    qwenApiKey || undefined,
   )
 
   // The draft is the caller's, not the lead's: per-user rows mean two
