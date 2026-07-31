@@ -272,7 +272,29 @@
               <p class="truncate text-sm">{{ member.profiles?.display_name ?? 'Unknown' }}</p>
               <p class="truncate text-xs text-mute">{{ member.profiles?.email }}</p>
             </div>
-            <span class="chip shrink-0 capitalize">{{ member.role }}</span>
+
+            <div class="flex shrink-0 items-center gap-2">
+              <span class="chip capitalize">{{ member.role }}</span>
+
+              <!-- Two-step, because removal also releases whatever they claimed. -->
+              <template v-if="canRemove(member)">
+                <template v-if="pendingRemoval === member.user_id">
+                  <button
+                    class="btn-quiet text-signal"
+                    :disabled="removing"
+                    @click="removeMember(member)"
+                  >
+                    {{ removing ? 'Removing…' : 'Confirm' }}
+                  </button>
+                  <button class="btn-quiet" :disabled="removing" @click="pendingRemoval = null">
+                    Cancel
+                  </button>
+                </template>
+                <button v-else class="btn-quiet" @click="pendingRemoval = member.user_id">
+                  Remove
+                </button>
+              </template>
+            </div>
           </li>
         </ul>
 
@@ -351,6 +373,8 @@ export default {
       inviteEmail: '',
       inviting: false,
       inviteMessage: '',
+      pendingRemoval: null,
+      removing: false,
     }
   },
 
@@ -430,6 +454,38 @@ export default {
       // Before migration 0002 the profiles table doesn't exist; keep Setup
       // usable and just leave the team list empty.
       if (!error) this.members = data ?? []
+    },
+
+    // Owners are the workspace's anchor and the role can't be transferred, so
+    // there's no safe way to remove one. Removing yourself isn't this button.
+    canRemove(member) {
+      return this.canInvite && member.role !== 'owner' && member.user_id !== this.me?.id
+    },
+
+    async removeMember(member) {
+      this.removing = true
+      this.error = ''
+      this.inviteMessage = ''
+
+      try {
+        const result = await $fetch('/api/member-remove', {
+          method: 'POST',
+          body: { userId: member.user_id },
+        })
+        this.toast(`${result.removed} was removed.`, {
+          tone: 'success',
+          detail: result.released
+            ? `${result.released} claimed ${result.released === 1 ? 'lead is' : 'leads are'} back in the inbox.`
+            : undefined,
+        })
+        this.pendingRemoval = null
+        await this.loadMembers()
+      } catch (e) {
+        this.error = e.data?.statusMessage || e.message
+        this.toast('Could not remove them.', { tone: 'error', detail: this.error })
+      } finally {
+        this.removing = false
+      }
     },
 
     async invite() {
