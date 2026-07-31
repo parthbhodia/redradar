@@ -6,7 +6,7 @@
         <div>
           <p class="eyebrow">
             <span class="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-signal radar-ping" aria-hidden="true" />
-            Reddit lead discovery
+            RedIntelli · Reddit lead discovery
           </p>
 
           <h1 class="mt-7 text-5xl leading-[1.03] font-semibold tracking-tight text-balance sm:text-6xl">
@@ -355,6 +355,66 @@
 
           <p class="max-w-2xl pb-6 leading-relaxed text-ink-soft">{{ item.a }}</p>
         </details>
+      </div>
+    </section>
+
+    <!--
+      Plain-language statement of what the app is and what it does with Google
+      account data. Google's OAuth homepage requirements ask for both on the
+      homepage itself — having it only in the privacy policy fails review. Keep
+      the product name spelled exactly as it appears on the consent screen; a
+      mismatch is its own rejection reason.
+    -->
+    <div class="rule-dashed mx-auto max-w-6xl" />
+    <section id="about" class="mx-auto max-w-6xl scroll-mt-24 px-6 py-20">
+      <div class="grid gap-10 lg:grid-cols-[1fr_1fr]">
+        <div>
+          <p class="eyebrow">About</p>
+          <h2 class="mt-7 text-3xl leading-[1.15] font-semibold tracking-tight text-balance">
+            What RedIntelli does
+          </h2>
+          <p class="mt-6 max-w-lg leading-relaxed text-ink-soft">
+            RedIntelli is a Reddit lead-discovery tool for marketing teams. It searches
+            Reddit for public threads matching keywords you choose, scores each thread
+            from 0 to 100 for buying intent, and drafts a reply in your brand's voice for
+            you to review and post yourself. RedIntelli never posts to Reddit on your
+            behalf.
+          </p>
+        </div>
+
+        <div>
+          <p class="eyebrow">Signing in with Google</p>
+          <h2 class="mt-7 text-3xl leading-[1.15] font-semibold tracking-tight text-balance">
+            What we access, and why
+          </h2>
+          <p class="mt-6 max-w-lg leading-relaxed text-ink-soft">
+            Google Sign-In is one of three optional ways to log in, alongside a magic link
+            and a password. We request only your <strong class="font-medium text-ink">basic
+            profile and email address</strong>, and we use them for exactly two things:
+            to identify your account, and to show your name to teammates in your
+            workspace.
+          </p>
+          <p class="mt-4 max-w-lg leading-relaxed text-ink-soft">
+            We do not request or access Gmail, Drive, Calendar, or any other Google
+            service, and we never sell your data. Our use of information received from
+            Google APIs follows the
+            <a
+              href="https://developers.google.com/terms/api-services-user-data-policy"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="underline decoration-rule underline-offset-4 transition-colors hover:decoration-signal"
+            >Google API Services User Data Policy</a>, including the Limited Use
+            requirements.
+          </p>
+          <p class="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm">
+            <NuxtLink to="/privacy" class="underline decoration-rule underline-offset-4 transition-colors hover:decoration-signal">
+              Privacy Policy
+            </NuxtLink>
+            <NuxtLink to="/terms" class="underline decoration-rule underline-offset-4 transition-colors hover:decoration-signal">
+              Terms of Service
+            </NuxtLink>
+          </p>
+        </div>
       </div>
     </section>
 

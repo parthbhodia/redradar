@@ -288,18 +288,34 @@ intentional** — the rename to RedIntelli was user-visible strings only.
       that also collapses the two knobs in §2 back into one.
 - [ ] **Rotate two credentials that were pasted into a chat transcript**: the
       Supabase `sb_secret_…` key and the Google OAuth client secret.
-- [ ] Google Branding, needed for OAuth verification. All three verified live
-      and publicly reachable (200, no auth wall — Google fetches them signed
+- [ ] **Google OAuth verification — rejected once, three findings.** Values to
+      use (all verified live, 200, no auth wall — Google fetches them signed
       out). Use the `www` form throughout; mixing apex and `www` across Google,
       Supabase and Vercel is what caused the earlier `redirect_uri_mismatch`.
 
       | Field | Value |
       | --- | --- |
-      | App name | `RedIntelli` |
+      | App name | `RedIntelli` — **one word, no space** |
       | Home page | `https://www.redintelli.com` |
       | Privacy policy | `https://www.redintelli.com/privacy` |
       | Terms of service | `https://www.redintelli.com/terms` |
       | Authorized domain | `redintelli.com` |
+
+      What each rejection meant:
+
+      1. *"homepage URL is not registered to you"* — domain ownership isn't
+         verified. Fix in **Google Search Console**, signed in as the same
+         account that owns the Cloud project: add a **Domain** property for
+         `redintelli.com` (DNS TXT via Cloudflare). A Domain property covers
+         apex and `www` together; a URL-prefix property would not.
+      2. *"homepage does not explain the purpose of your app"* — fixed in code.
+         The `#about` section on the landing page now states plainly what the
+         app does **and** what Google data it uses. Google wants both on the
+         homepage itself; having it only in the privacy policy fails review.
+         **Don't delete that section during a redesign.**
+      3. *"app name does not match the app name on your homepage"* — the consent
+         screen said `Red Intelli`. It must be `RedIntelli`, matching the header
+         and the `#about` heading exactly.
 - [ ] Landing page direction unresolved — a Cueful-style image-tile treatment was
       floated and dropped. Current page stands.
 - [ ] The landing stat band has no real numbers behind it. Wiring it to live DB
