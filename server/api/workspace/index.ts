@@ -87,6 +87,15 @@ export default defineEventHandler(async (event) => {
         if (!body.campaignId || !body.phrase) {
           throw createError({ statusCode: 400, statusMessage: 'campaignId and phrase required.' })
         }
+        // Rate limit: 50 keywords per campaign (1 sec × 50 = 50 sec max scan)
+        const MAX_KEYWORDS_PER_CAMPAIGN = 50
+        const existingKeywords = listKeywords(body.campaignId)
+        if (existingKeywords.length >= MAX_KEYWORDS_PER_CAMPAIGN) {
+          throw createError({
+            statusCode: 409,
+            statusMessage: `Keyword limit (${MAX_KEYWORDS_PER_CAMPAIGN}) reached. Remove some to add more.`,
+          })
+        }
         const keyword = addKeyword(
           body.campaignId,
           body.phrase,
