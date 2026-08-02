@@ -194,6 +194,31 @@
           </table>
 
           <p v-else class="text-sm text-mute">No scans recorded yet.</p>
+
+          <div v-if="scanRunsTotal > scanRunsPageSize" class="mt-4 flex items-center justify-between gap-3">
+            <p class="text-xs text-mute">
+              {{ scanRunsPage * scanRunsPageSize + 1 }}–{{ Math.min((scanRunsPage + 1) * scanRunsPageSize, scanRunsTotal) }}
+              of {{ scanRunsTotal }}
+            </p>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                class="btn-quiet"
+                :disabled="!scanRunsHasPrev || scanRunsLoading"
+                @click="scanRunsPrev"
+              >
+                ← Newer
+              </button>
+              <button
+                type="button"
+                class="btn-quiet"
+                :disabled="!scanRunsHasNext || scanRunsLoading"
+                @click="scanRunsNext"
+              >
+                Older →
+              </button>
+            </div>
+          </div>
         </section>
 
         <section class="card">
@@ -261,6 +286,10 @@ export default {
       loading: true,
       error: '',
       scanRuns: [],
+      scanRunsPage: 0,
+      scanRunsPageSize: 10,
+      scanRunsTotal: 0,
+      scanRunsLoading: false,
       keywordPerf: [],
     }
   },
@@ -282,6 +311,14 @@ export default {
       if (hours < 1) return 'just now'
       if (hours < 24) return `${Math.round(hours)}h ago`
       return `${Math.round(hours / 24)}d ago`
+    },
+
+    scanRunsHasNext() {
+      return (this.scanRunsPage + 1) * this.scanRunsPageSize < this.scanRunsTotal
+    },
+
+    scanRunsHasPrev() {
+      return this.scanRunsPage > 0
     },
 
     kpis() {
@@ -454,23 +491,49 @@ export default {
     async loadScanHistory() {
       if (this.localMode || !this.activeCampaignId) return
 
-      const [runs, perf] = await Promise.all([
-        this.supabase
-          .from('scan_runs')
-          .select('id, trigger, status, started_at, finished_at, keywords, scanned, inserted, updated, errors, error_message')
-          .eq('campaign_id', this.activeCampaignId)
-          .order('started_at', { ascending: false })
-          .limit(10),
-        this.supabase
-          .from('keyword_performance')
-          .select('phrase, runs, last_run_at, threads_seen, leads_new, best_score, failed_runs')
-          .eq('campaign_id', this.activeCampaignId),
-      ])
+      this.scanRunsPage = 0
+      await this.loadScanRunsPage()
 
-      this.scanRuns = runs.error ? [] : (runs.data ?? [])
+      const perf = await this.supabase
+        .from('keyword_performance')
+        .select('phrase, runs, last_run_at, threads_seen, leads_new, best_score, failed_runs')
+        .eq('campaign_id', this.activeCampaignId)
+
       this.keywordPerf = perf.error
         ? []
         : [...(perf.data ?? [])].sort((a, b) => (b.leads_new ?? 0) - (a.leads_new ?? 0))
+    },
+
+    /** Just the scan_runs page — split out so Prev/Next don't re-fetch keyword yield too. */
+    async loadScanRunsPage() {
+      if (this.localMode || !this.activeCampaignId) return
+
+      this.scanRunsLoading = true
+      const from = this.scanRunsPage * this.scanRunsPageSize
+      const to = from + this.scanRunsPageSize - 1
+
+      const runs = await this.supabase
+        .from('scan_runs')
+        .select('id, trigger, status, started_at, finished_at, keywords, scanned, inserted, updated, errors, error_message', { count: 'exact' })
+        .eq('campaign_id', this.activeCampaignId)
+        .order('started_at', { ascending: false })
+        .range(from, to)
+
+      this.scanRuns = runs.error ? [] : (runs.data ?? [])
+      this.scanRunsTotal = runs.error ? 0 : (runs.count ?? 0)
+      this.scanRunsLoading = false
+    },
+
+    scanRunsPrev() {
+      if (!this.scanRunsHasPrev) return
+      this.scanRunsPage -= 1
+      this.loadScanRunsPage()
+    },
+
+    scanRunsNext() {
+      if (!this.scanRunsHasNext) return
+      this.scanRunsPage += 1
+      this.loadScanRunsPage()
     },
   },
 }
