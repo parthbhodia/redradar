@@ -409,7 +409,8 @@ export function upsertLeads(
     score: number
     signals: string[]
     matched_keyword: string
-    posted_at: string
+    /** Null when the source reported no date — the column is nullable. */
+    posted_at: string | null
   }>,
 ) {
   const db = getLocalDb()

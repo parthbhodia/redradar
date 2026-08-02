@@ -53,26 +53,17 @@ function toPost(result: ExaResult): RedditPost | null {
     // Canonicalised: the index may hand back an old.reddit or share URL, and
     // dedupe upstream keys on (platform, external_id) plus this.
     url: `https://www.reddit.com/r/${subreddit}/comments/${id}/`,
-    createdAt: result.publishedDate ?? new Date().toISOString(),
+    // The index reports no date for Reddit threads — every result comes back
+    // with publishedDate null. Defaulting to `now` would award all of them
+    // "posted in the last 24h" and float month-old threads to the top of the
+    // inbox. Null, and the scorer skips freshness entirely.
+    createdAt: result.publishedDate ?? null,
     numComments: null,
     ups: null,
     // The index does not expose NSFW status. Treated as false so the scorer's
     // penalty simply never fires, rather than blanket-penalising every lead.
     over18: false,
   }
-}
-
-function windowStart(time: RedditSearchOptions['time']): string | undefined {
-  const hours: Record<string, number> = {
-    hour: 1,
-    day: 24,
-    week: 24 * 7,
-    month: 24 * 30,
-    year: 24 * 365,
-  }
-  const span = hours[time ?? 'month']
-  if (!span) return undefined // 'all'
-  return new Date(Date.now() - span * 3_600_000).toISOString()
 }
 
 export function createSearchIndexAdapter(apiKey: string): RedditAdapter {
@@ -97,7 +88,9 @@ export function createSearchIndexAdapter(apiKey: string): RedditAdapter {
           query,
           numResults: options.limit ?? 25,
           includeDomains: ['reddit.com'],
-          startPublishedDate: windowStart(options.time),
+          // Deliberately NOT sending startPublishedDate. The index has no date
+          // for Reddit threads, so a date floor filters out every single one
+          // and the adapter returns nothing at all.
           contents: { text: { maxCharacters: 2000 } },
         },
         retry: 1,
@@ -119,7 +112,12 @@ export function createSearchIndexAdapter(apiKey: string): RedditAdapter {
       // Honour `sort: 'new'` client-side. The index ranks by relevance and has
       // no sort parameter, so this is the closest we can get.
       if (options.sort === 'new') {
-        unique.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+        // Undated results sort last rather than being treated as epoch-zero.
+        unique.sort((a, b) => {
+          const at = a.createdAt ? Date.parse(a.createdAt) : -Infinity
+          const bt = b.createdAt ? Date.parse(b.createdAt) : -Infinity
+          return bt - at
+        })
       }
 
       // Post-filter to the requested subreddit, since the query hint above only

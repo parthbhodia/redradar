@@ -144,8 +144,13 @@ export function scoreLead(post: RedditPost, phrase: string, brand?: Pick<Brand, 
   // A thread's value decays fast, and the old curve was flat between one week
   // and one month: an 8-day thread scored the same as a 29-day one and could
   // still top the inbox. Replying that late lands under everything.
-  const age = hoursSince(post.createdAt)
-  if (age <= 24) {
+  // Skipped entirely when the source has no date. Assuming "now" would hand
+  // every undated thread the +15 and put months-old threads at the top of the
+  // inbox — the precise failure this scorer exists to prevent.
+  const age = post.createdAt === null ? null : hoursSince(post.createdAt)
+  if (age === null) {
+    signals.push('post date unavailable')
+  } else if (age <= 24) {
     score += 15
     signals.push('posted in the last 24h')
   } else if (age <= 72) {

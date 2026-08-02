@@ -66,7 +66,13 @@ export interface RedditPost {
   subreddit: string
   author: string
   url: string
-  createdAt: string
+  /**
+   * Null when the source can't report it. A search index returns no date at
+   * all for Reddit threads, and defaulting to `now` would award every one of
+   * them the scorer's +15 "posted in the last 24h" — fabricating the freshness
+   * the whole product is sold on.
+   */
+  createdAt: string | null
   /**
    * Null when the source can't report it. A search index returns titles and
    * dates but no thread stats, and defaulting those to 0 would hand every

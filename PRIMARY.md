@@ -229,6 +229,8 @@ exists because it sees reply counts and upvotes, which an index cannot. An empty
 result falls through rather than counting as success — on a machine with no
 Chrome, OpenCLI returning nothing is indistinguishable from it failing.
 
+**But Exa does not solve discovery on its own — see §3.9.2 before relying on it.**
+
 ### 3.9.1 Unknown engagement is null, never zero
 
 An index knows a thread's title, URL and date. It does not know `num_comments`
@@ -244,6 +246,36 @@ Both engagement signals are now skipped when the value is null, and a
 every point is explainable. Measured on an identical thread: 55 with few
 replies, 39 when crowded, **47 when unknown** — exactly midway, claiming
 nothing. Covered by tests in the commit that introduced it.
+
+The same trap applies to `createdAt`, which is `string | null` for the same
+reason: Exa returns **no date at all** for Reddit threads, and `?? new Date()`
+would award every one of them +15 "posted in the last 24h" and float month-old
+threads to the top. The freshness block is skipped when the date is null, with a
+`post date unavailable` signal. `posted_at` in both the Postgres and SQLite
+schemas is nullable, so this stores cleanly.
+
+The adapter also deliberately **does not send `startPublishedDate`**. A date
+floor filters on a field Reddit results don't have, so it returns zero rows.
+
+### 3.9.2 Exa is a stopgap, not the answer
+
+Measured 2026-08-02, querying Exa the way discovery does:
+
+- **Reddit threads carry no `publishedDate`.** Every one came back `N/A`. So the
+  recency scoring — the product's central claim, "reply before it goes cold" —
+  cannot work through this source. Leads arrive undated and forgo ±25 points.
+- **Reddit is a minority of results.** For `linktree alternative
+  recommendations`, *zero* of six results were Reddit; the rest were SEO
+  listicles. `includeDomains` filters them out, but the usable yield per query
+  is far below the result count.
+- Semantic relevance ranking is not "new threads matching my keyword", which is
+  what discovery actually wants.
+
+**Likely better:** a Google-backed SERP API (Serper, SerpAPI) with
+`site:reddit.com` and a recency filter (`tbs=qdr:d`). Google indexes Reddit
+quickly and exposes date restriction, which is precisely what Exa lacks here.
+Untested — no key available at the time of writing — so treat as a lead, not a
+recommendation. The `RedditAdapter` interface makes it a drop-in swap.
 
 ### 3.10 Local mode is a different product
 
