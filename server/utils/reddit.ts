@@ -1,5 +1,6 @@
 import type { RedditPost } from '#shared/types'
 import { createOpenCliAdapter } from './opencli-reddit'
+import { phraseQuery } from './reddit-query'
 import { createSearchIndexAdapter } from './search-index'
 import { createShredditListingAdapter } from './shreddit-listing'
 
@@ -76,7 +77,7 @@ function parseListing(payload: unknown): RedditPost[] {
 
 function searchPath(options: RedditSearchOptions) {
   const params = new URLSearchParams({
-    q: options.query,
+    q: phraseQuery(options.query),
     sort: options.sort ?? 'new',
     t: options.time ?? 'month',
     limit: String(options.limit ?? 25),

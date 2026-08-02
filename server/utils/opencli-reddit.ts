@@ -3,6 +3,7 @@ import { dirname, delimiter } from 'node:path'
 import { promisify } from 'node:util'
 import type { RedditPost } from '#shared/types'
 import type { RedditAdapter, RedditSearchOptions } from './reddit'
+import { phraseQuery } from './reddit-query'
 
 const execFileAsync = promisify(execFile)
 
@@ -67,7 +68,7 @@ export function createOpenCliAdapter(): RedditAdapter {
       const args = [
         'reddit',
         'search',
-        options.query,
+        phraseQuery(options.query),
         '--sort', options.sort ?? 'new',
         '--time', options.time ?? 'month',
         '--limit', String(options.limit ?? 25),

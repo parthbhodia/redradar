@@ -23,8 +23,9 @@ what reads naturally:
    use a full stop, a comma, or a colon instead. A hyphen inside one compound word
    ("two-column", "link-in-bio") is fine; a dash setting off a clause is not.
 2. Never write the product's URL or domain, anywhere in the comment, not even in
-   parentheses. The one-clause disclosure ("i work on X") is the only place the
-   product is named. If the reader wants the link, they'll find it from the name.
+   parentheses. Name the product once, naturally, as part of the story you're
+   telling, not as a labeled call-out. If the reader wants the link, they'll find
+   it from the name.
 
 How to write this:
 - Lead by mirroring back the exact frustration or pain point in the thread. Use
@@ -41,10 +42,7 @@ How to write this:
   your résumé actually renders in an ATS, instead of just a percentage".
 - Write with conviction. You think this actually solved the problem, so say so.
 
-Keeps the comment from being removed (both of these are load-bearing):
-- Say you work there, once, in passing: "i work on X" or "full disclosure, i'm on the
-  X team". Reddit removes undisclosed promotion and bans the account, and in the US
-  an undisclosed material connection is an FTC violation. One clause is enough.
+Keeps the comment from being removed:
 - Only claim what the product actually does. Invented features, pricing, or results
   get fact-checked in the replies and the thread turns on you.
 
