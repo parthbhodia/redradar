@@ -3,6 +3,7 @@ import { collectCandidates, upsertCandidates } from '../utils/discovery'
 import { requireCampaign } from '../utils/guard'
 import { isLocalMode, listKeywords, upsertLeads } from '../utils/local-db'
 import { createRedditAdapter } from '../utils/reddit'
+import { checkRedditRateLimitStatus } from '../utils/reddit-rate-limit'
 import { getScanQuota, untilReset } from '../utils/scan-quota'
 import { failScanRun, finishScanRun, startScanRun } from '../utils/scan-runs'
 
@@ -85,6 +86,8 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
   const quotaAfter = quota && !quota.unlimited
     ? { ...quota, used: quota.used + 1, remaining: Math.max(0, quota.remaining - 1) }
     : quota
+
+  const rateLimitStatus = quotaAfter ? checkRedditRateLimitStatus(quotaAfter) : null
 
   let collected
   try {
