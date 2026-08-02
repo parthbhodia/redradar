@@ -644,6 +644,7 @@ export default {
           })
           await this.load(true)
           this.brandSaved = true
+          this.toast('Brand saved.', { tone: 'success' })
           setTimeout(() => { this.brandSaved = false }, 3000)
           return
         }
@@ -672,9 +673,11 @@ export default {
 
         await this.load(true)
         this.brandSaved = true
+        this.toast('Brand saved.', { tone: 'success' })
         setTimeout(() => { this.brandSaved = false }, 3000)
       } catch (e) {
         this.brandError = e.data?.statusMessage || e.message
+        this.toast('Could not save brand.', { tone: 'error', detail: this.brandError })
       } finally {
         this.busy = false
       }
@@ -734,6 +737,7 @@ export default {
       // Validate brand is set up first
       if (!this.activeBrand?.name) {
         this.keywordSuggestError = 'Fill in the brand name first, then try again.'
+        this.toast('Add a brand first.', { tone: 'warn', detail: this.keywordSuggestError })
         return
       }
 
@@ -749,9 +753,13 @@ export default {
         this.keywordIdeas = result.keywords ?? []
         if (!this.keywordIdeas.length) {
           this.keywordSuggestError = 'No keywords suggested. Try filling in more brand details (description, competitors).'
+          this.toast('No suggestions came back.', { tone: 'warn', detail: this.keywordSuggestError })
+        } else {
+          this.toast(`${this.keywordIdeas.length} keyword${this.keywordIdeas.length === 1 ? '' : 's'} suggested.`, { tone: 'success' })
         }
       } catch (e) {
         this.keywordSuggestError = e.data?.statusMessage || e.message
+        this.toast('Suggestion failed.', { tone: 'error', detail: this.keywordSuggestError })
       } finally {
         this.suggestingKeywords = false
       }
