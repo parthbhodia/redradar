@@ -306,7 +306,48 @@ pay the premium expecting it to.
 linearly, and the daily scan cap is now a margin control as much as an abuse
 control. Changing `DAILY_SCAN_LIMIT` or `MAX_ORG_MEMBERS` moves the cost line.
 
-### 3.9.4 Suggestions that come up and don't work — checked, not assumed
+### 3.9.4 The authoritative statement: Reddit's robots.txt, and Ben Lee on the record
+
+`https://www.reddit.com/robots.txt` — fetched directly, this is the complete
+file:
+
+```
+User-agent: *
+Disallow: /
+```
+
+No named-bot exceptions anywhere in it. Every automated agent, without
+exception, is asked not to access any page.
+
+The one exception isn't in the file — it's a private commercial deal. Reuters
+reported (2024-02-22) a **$60M/year Reddit–Google agreement** for AI-training
+access. When Reddit rewrote `robots.txt` to this blanket block in July 2024,
+**Reddit's chief legal officer, Ben Lee, told The Verge why**:
+
+> *"It's a signal to those who don't have an agreement with us that they
+> shouldn't be accessing Reddit data."*
+
+Microsoft confirmed Bing complied and stopped crawling Reddit as a direct
+result. Google is the sole exception, and only because it pays for one.
+
+**This is the single most authoritative statement in this entire section** —
+not an inferred 403 or a policy document, but Reddit's own General Counsel
+stating the intent outright. Consequences:
+
+- **Prefer a Google-backed SERP API over a generic one.** Bing has no live path
+  to fresh Reddit content — Microsoft said so itself — so a provider not
+  specifically querying Google's results cannot show recent Reddit posts,
+  regardless of how good its API is. Confirm the backend before choosing.
+- **Trust Exa's Reddit coverage less, not more.** Every result in §3.9.2's test
+  had `publishedDate: null`. Given only Google has live access, Exa's Reddit
+  content is more likely a stale pre-block crawl than a current feed — a
+  cleaner explanation than "the field isn't exposed." Treat as backup.
+- **OpenCLI is the same access Reddit is on record not wanting**, even though
+  browser automation doesn't trip robots.txt's UA matching the way a labeled
+  bot does. Every lead in the database so far came from local OpenCLI scans.
+  Fine for personal dogfooding; not a foundation to scale a business on.
+
+### 3.9.5 Suggestions that come up and don't work — checked, not assumed
 
 - **RSS / subreddit feeds.** Real post timestamps, sub-hour freshness, free —
   genuinely better than Exa on the one signal that matters. But the rate limit
