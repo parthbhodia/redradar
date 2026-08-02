@@ -174,22 +174,75 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="run in scanRuns" :key="run.id" class="border-t border-line/60">
-                <td class="py-2">
-                  <span class="flex items-center gap-2">
-                    <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="runDot(run)" aria-hidden="true" />
-                    {{ timeAgo(run.started_at) }}
-                  </span>
-                  <span v-if="run.status !== 'ok'" class="mt-0.5 block text-xs" :class="run.status === 'failed' ? 'text-signal-soft' : 'text-warn'">
-                    {{ runNote(run) }}
-                  </span>
-                </td>
-                <td class="py-2 text-mute capitalize">{{ run.trigger }}</td>
-                <td class="py-2 text-right font-mono tabular-nums" :class="run.inserted ? 'text-signal' : 'text-mute'">
-                  {{ run.inserted }}
-                </td>
-                <td class="py-2 text-right font-mono text-mute tabular-nums">{{ run.scanned }}</td>
-              </tr>
+              <template v-for="run in scanRuns" :key="run.id">
+                <tr
+                  class="cursor-pointer border-t border-line/60 hover:bg-panel-2"
+                  role="button"
+                  tabindex="0"
+                  :aria-expanded="expandedRunId === run.id"
+                  @click="toggleRunDetail(run.id)"
+                  @keydown.enter="toggleRunDetail(run.id)"
+                >
+                  <td class="py-2">
+                    <span class="flex items-center gap-2">
+                      <svg
+                        viewBox="0 0 16 16"
+                        class="h-3 w-3 shrink-0 text-mute transition-transform"
+                        :class="expandedRunId === run.id ? 'rotate-90' : ''"
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path d="M6 4l4 4-4 4V4z" />
+                      </svg>
+                      <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="runDot(run)" aria-hidden="true" />
+                      {{ timeAgo(run.started_at) }}
+                    </span>
+                    <span v-if="run.status !== 'ok'" class="mt-0.5 ml-5 block text-xs" :class="run.status === 'failed' ? 'text-signal-soft' : 'text-warn'">
+                      {{ runNote(run) }}
+                    </span>
+                  </td>
+                  <td class="py-2 text-mute capitalize">{{ run.trigger }}</td>
+                  <td class="py-2 text-right font-mono tabular-nums" :class="run.inserted ? 'text-signal' : 'text-mute'">
+                    {{ run.inserted }}
+                  </td>
+                  <td class="py-2 text-right font-mono text-mute tabular-nums">{{ run.scanned }}</td>
+                </tr>
+
+                <tr v-if="expandedRunId === run.id">
+                  <td colspan="4" class="bg-panel-2/60 px-2 py-3">
+                    <p v-if="runDetailLoading" class="text-xs text-mute">Loading…</p>
+                    <p v-else-if="!runDetail.length" class="text-xs text-mute">No per-keyword data recorded for this run.</p>
+                    <table v-else class="w-full text-xs">
+                      <caption class="sr-only">Per-keyword breakdown for this scan</caption>
+                      <thead>
+                        <tr class="text-mute uppercase">
+                          <th scope="col" class="pb-1.5 text-left font-medium">Keyword</th>
+                          <th scope="col" class="pb-1.5 text-right font-medium">Seen</th>
+                          <th scope="col" class="pb-1.5 text-right font-medium">Matched</th>
+                          <th scope="col" class="pb-1.5 text-right font-medium">New</th>
+                          <th scope="col" class="pb-1.5 text-right font-medium">Top score</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="row in runDetail" :key="row.id" class="border-t border-line/40">
+                          <td class="py-1.5 pr-2">
+                            <span class="block truncate">{{ row.phrase }}</span>
+                            <span v-if="row.error" class="text-signal-soft">{{ row.error }}</span>
+                          </td>
+                          <td class="py-1.5 text-right font-mono tabular-nums">{{ row.scanned }}</td>
+                          <td class="py-1.5 text-right font-mono tabular-nums">{{ row.matched }}</td>
+                          <td class="py-1.5 text-right font-mono tabular-nums" :class="row.inserted ? 'text-signal' : 'text-mute'">
+                            {{ row.inserted }}
+                          </td>
+                          <td class="py-1.5 text-right font-mono tabular-nums text-mute">
+                            {{ row.top_score ?? '—' }}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+              </template>
             </tbody>
           </table>
 
@@ -290,6 +343,10 @@ export default {
       scanRunsPageSize: 10,
       scanRunsTotal: 0,
       scanRunsLoading: false,
+      expandedRunId: null,
+      runDetail: [],
+      runDetailLoading: false,
+      runDetailCache: {},
       keywordPerf: [],
     }
   },
@@ -492,6 +549,11 @@ export default {
       if (this.localMode || !this.activeCampaignId) return
 
       this.scanRunsPage = 0
+      // A cached run detail from a different campaign shouldn't be reachable
+      // through a run_id that happens to collide (it won't) or just linger
+      // expanded under the wrong campaign's rows.
+      this.expandedRunId = null
+      this.runDetailCache = {}
       await this.loadScanRunsPage()
 
       const perf = await this.supabase
@@ -527,13 +589,46 @@ export default {
     scanRunsPrev() {
       if (!this.scanRunsHasPrev) return
       this.scanRunsPage -= 1
+      this.expandedRunId = null
       this.loadScanRunsPage()
     },
 
     scanRunsNext() {
       if (!this.scanRunsHasNext) return
       this.scanRunsPage += 1
+      this.expandedRunId = null
       this.loadScanRunsPage()
+    },
+
+    async toggleRunDetail(runId) {
+      if (this.expandedRunId === runId) {
+        this.expandedRunId = null
+        return
+      }
+
+      this.expandedRunId = runId
+
+      // Cached per run_id, so re-expanding a row you already opened is free.
+      if (this.runDetailCache[runId]) {
+        this.runDetail = this.runDetailCache[runId]
+        return
+      }
+
+      this.runDetailLoading = true
+      this.runDetail = []
+      try {
+        const { data, error } = await this.supabase
+          .from('scan_run_keywords')
+          .select('id, phrase, subreddit_filter, scanned, matched, inserted, updated, top_score, error')
+          .eq('run_id', runId)
+          .order('inserted', { ascending: false })
+
+        const rows = error ? [] : (data ?? [])
+        this.runDetailCache = { ...this.runDetailCache, [runId]: rows }
+        this.runDetail = rows
+      } finally {
+        this.runDetailLoading = false
+      }
     },
   },
 }
