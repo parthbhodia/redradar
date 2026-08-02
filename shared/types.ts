@@ -88,6 +88,8 @@ export interface DiscoverRequest {
   campaignId: string
   /** Optional cap on threads fetched per keyword. Defaults to 25. */
   limit?: number
+  /** Bypasses the "scanned recently" cooldown confirmation. */
+  force?: boolean
 }
 
 export interface ScanQuotaInfo {

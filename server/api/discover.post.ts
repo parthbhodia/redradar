@@ -6,7 +6,7 @@ import { createRedditAdapter } from '../utils/reddit'
 import { checkRedditRateLimitStatus } from '../utils/reddit-rate-limit'
 import { getScanQuota, untilReset } from '../utils/scan-quota'
 import { completeScan, requestScanAccess, type ScanQueueStatus } from '../utils/scan-queue'
-import { failScanRun, finishScanRun, startScanRun } from '../utils/scan-runs'
+import { checkCampaignScanState, failScanRun, finishScanRun, startScanRun } from '../utils/scan-runs'
 
 export default defineEventHandler(async (event): Promise<DiscoverResponse & { queueStatus?: ScanQueueStatus }> => {
   const body = await readBody<DiscoverRequest>(event)
@@ -15,6 +15,39 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse & { qu
   }
 
   const { client, campaign, brand, local, user } = await requireCampaign(event, body.campaignId)
+
+  // Local mode keeps its own SQLite store and has no scan history — the
+  // per-campaign lock/cooldown below only applies where scan_runs exists.
+  const cloud = !(local || isLocalMode())
+  const admin = cloud
+    ? (await import('#supabase/server')).serverSupabaseServiceRole(event)
+    : null
+
+  // DB-backed, not the in-memory queue below: source of truth across every
+  // serverless instance, and specific to this campaign rather than global
+  // Reddit-credential access. Checked first so a scan that's going to be
+  // blocked or need confirming never reserves a queue slot for nothing.
+  if (admin) {
+    const state = await checkCampaignScanState(admin, campaign.id)
+
+    if (state.blocked) {
+      throw createError({
+        statusCode: 409,
+        statusMessage: state.blockedBy
+          ? `${state.blockedBy} started a scan for this campaign. Wait for it to finish.`
+          : 'A scan for this campaign is already running.',
+        data: { scanBlocked: true, blockedBy: state.blockedBy, startedAt: state.blockedStartedAt },
+      })
+    }
+
+    if (state.needsConfirm && !body.force) {
+      throw createError({
+        statusCode: 409,
+        statusMessage: 'This campaign was scanned recently.',
+        data: { needsConfirm: true, lastScannedAt: state.lastScannedAt },
+      })
+    }
+  }
 
   // Check global scan queue (protects shared Reddit OAuth credentials)
   const queueResult = requestScanAccess(user?.id ?? 'anonymous', body.campaignId)
@@ -63,12 +96,6 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse & { qu
   // endpoint straight, and 100 results/keyword is a lot of unpaced Reddit
   // API surface to hand out on request.
   const limit = Math.min(Math.max(body.limit ?? 25, 1), 25)
-
-  // Local mode keeps its own SQLite store and has no scan history.
-  const cloud = !(local || isLocalMode())
-  const admin = cloud
-    ? (await import('#supabase/server')).serverSupabaseServiceRole(event)
-    : null
 
   // Rate limit before doing any work. Enforced here rather than in the UI
   // because the endpoint is reachable directly.
