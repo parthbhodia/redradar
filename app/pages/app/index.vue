@@ -418,7 +418,7 @@ export default {
       inviteMessage: '',
       pendingRemoval: null,
       removing: false,
-      maxKeywordsPerCampaign: 50, // Rate limiting: 50 keywords × 1s = 50s max scan
+      maxKeywordsPerCampaign: 10, // Rate limiting: 10 keywords × 1s = 10s max scan
       redditApiPacingMs: 1000, // 1 second between keyword searches
     }
   },
