@@ -2,21 +2,19 @@
 
 ## Prerequisites
 
-Your Reddit scraper is production-ready. To run on your live site:
+Your Reddit scraper is production-ready with OAuth credentials.
 
 ## Required Environment Variables
 
 Set these on your deployment platform (Vercel, Railway, etc.):
 
-### Search API (REQUIRED for production)
+### Reddit OAuth (REQUIRED for production)
 
 ```bash
-# Exa.ai API key — the only discovery method that works in production
-# Why: Reddit blocks direct API access; Exa searches Google's Reddit index
-# Sign up: https://exa.ai
-# Free tier: 2,500 credits/month (~138 scans at 3 scans/day)
-# Production cost: ~$0.81/user/month (Starter tier)
-SEARCH_API_KEY=<your-exa-api-key>
+# Reddit API OAuth credentials — direct API access
+REDDIT_CLIENT_ID=iQrfMpNDrzZEiO7MShKzjQ
+REDDIT_CLIENT_SECRET=pIjanvG91lZJ9G4niJCbdnHi_HJjzA
+REDDIT_USER_AGENT=mi_app_reddit
 ```
 
 ### Database (if using Supabase)
@@ -31,8 +29,8 @@ NUXT_SUPABASE_SECRET_KEY=<your-supabase-service-role-key>
 ### Rate Limiting (Optional, recommended to tweak)
 
 ```bash
-# Daily scans per user — reduce if costs too high
-# Default: 3 scans/day = ~27 Exa queries/day per user
+# Daily scans per user — adjust based on usage
+# Default: 3 scans/day
 NUXT_PUBLIC_DAILY_SCAN_LIMIT=3
 
 # Workspace member limit
@@ -42,16 +40,6 @@ NUXT_PUBLIC_MAX_ORG_MEMBERS=3
 # Admin emails get unlimited scans (comma-separated, no spaces)
 # Example: admin@company.com,boss@company.com
 ADMIN_EMAILS=
-```
-
-### Optional: Reddit OAuth (local testing only, leave empty for production)
-
-```bash
-# Not needed for production — kept for local development
-# These credentials cannot be obtained (Reddit's approval process is broken)
-REDDIT_CLIENT_ID=
-REDDIT_CLIENT_SECRET=
-REDDIT_USER_AGENT=
 ```
 
 ---
@@ -65,16 +53,24 @@ REDDIT_USER_AGENT=
 Settings → Environment Variables → Add
 ```
 
+Add these:
+- `REDDIT_CLIENT_ID` = `iQrfMpNDrzZEiO7MShKzjQ`
+- `REDDIT_CLIENT_SECRET` = `pIjanvG91lZJ9G4niJCbdnHi_HJjzA`
+- `REDDIT_USER_AGENT` = `mi_app_reddit`
+- `SUPABASE_URL` = (if using Supabase)
+- `SUPABASE_KEY` = (if using Supabase)
+
 Key points:
-- Add `SEARCH_API_KEY` — this is the critical one
-- Add `SUPABASE_*` keys if using Supabase
+- Reddit credentials are required for OAuth
+- Rate limiting is automatic (1 sec between searches)
 - Prefix with `NUXT_PUBLIC_` for runtime overrides (no rebuild needed)
 
 **Example for Vercel:**
 ```
-SEARCH_API_KEY = sk_...
-SUPABASE_URL = https://xxx.supabase.co
-NUXT_PUBLIC_DAILY_SCAN_LIMIT = 5
+REDDIT_CLIENT_ID = iQrfMpNDrzZEiO7MShKzjQ
+REDDIT_CLIENT_SECRET = pIjanvG91lZJ9G4niJCbdnHi_HJjzA
+REDDIT_USER_AGENT = mi_app_reddit
+NUXT_PUBLIC_DAILY_SCAN_LIMIT = 3
 ```
 
 ### 2. Deploy
@@ -90,79 +86,81 @@ Visit your site:
 1. Create a workspace → brand → campaign
 2. Add 2-3 keywords
 3. Click "Scan now"
-4. Check results in inbox
+4. Check results in inbox (should populate in 3-5 seconds)
 
-**If scan fails:** Check Vercel logs for `SEARCH_API_KEY` — it's required to work.
-
----
-
-## Cost Estimator
-
-Based on default settings (3 scans/day, ~3 keywords per scan):
-
-| Provider | Free | Starter | Scale |
-|----------|------|---------|-------|
-| **Exa** | 2,500 cr/mo (138 scans) | $10-30/mo | $100+/mo |
-| **Serper** | 2,500 cr/mo (1,250 queries) | $50/50k | $1,250/2.5M |
-| **Google SERP API** | None | $25-100/mo | Custom |
-
-**Recommendation:** Start with Exa free tier (test coverage for 138 scans), switch to Serper Starter ($50/mo) when you need more.
+**If scan fails:** Check Vercel logs for:
+- `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` set correctly
+- Network connectivity to `oauth.reddit.com`
+- Rate limiting isn't blocking (shouldn't be with 3 keywords)
 
 ---
 
-## Reducing Costs if Needed
+## Rate Limiting & Safety
 
-### Option 1: Lower Daily Scan Limit
+Built-in protections prevent Reddit from blocking your app:
 
-```bash
-NUXT_PUBLIC_DAILY_SCAN_LIMIT=1  # 1 scan/day per user = ~9 Exa queries/day
-```
+| Protection | Implementation | Effect |
+|-----------|-----------------|--------|
+| **Pacing** | 1 second between keyword searches | Automatic, transparent |
+| **Daily quota** | 3 scans/day per user | Clear UI warnings |
+| **Keyword limit** | 50 keywords per campaign | Form validation |
+| **Concurrent protection** | No request batching | Sequential searches only |
 
-### Option 2: Reduce Results Per Scan
-
-Edit `server/api/discover.post.ts` line 47:
-```typescript
-const limit = Math.min(Math.max(body.limit ?? 10, 1), 25)  // was 25, now 10
-```
-
-Saves 50% on API costs, slight loss in lead discovery.
-
-### Option 3: Paid Tier
-
-Serper Starter ($50/mo for 50k credits):
-- Covers ~200 users at 3 scans/day
-- Better quality than free tier
-- Support included
+Example: User runs scan with 5 keywords = 5 seconds total (1 sec × 5), stays well under Reddit's 60 req/min limit.
 
 ---
 
 ## Monitoring
 
-### Check API Usage
+### Check API Health
 
-**Exa:**
-- Dashboard: https://exa.ai/dashboard
-- Monitor credit burn rate
+**Reddit OAuth Status:**
+- Monitor 401/403 errors in logs (auth failure)
+- Monitor 429 errors (rate limited by Reddit)
 
 **Vercel:**
 - Settings → Analytics
-- Monitor request count and latency
+- Monitor request count and response times
 
 ### Common Issues
 
 | Issue | Fix |
 |-------|-----|
-| Scans return 0 leads | `SEARCH_API_KEY` not set or invalid |
-| "Daily limit reached" errors | Reduce `DAILY_SCAN_LIMIT` or buy more credits |
-| Slow scans | 1 sec per keyword is normal (rate limiting) |
-| High API costs | Reduce `limit` per scan (10 instead of 25) |
+| 401 errors | Check REDDIT_CLIENT_ID/SECRET in Vercel |
+| 429 errors (rate limited) | Reduce DAILY_SCAN_LIMIT or reduce keywords per scan |
+| 0 leads returned | Check keyword matches Reddit (common words work better) |
+| Slow scans | Normal — 1 sec per keyword is intentional (safety) |
+
+---
+
+## Tuning for Your Traffic
+
+### If running smoothly, no changes needed
+
+### If rate-limited by Reddit (429 errors)
+
+Option 1: Reduce scan frequency
+```bash
+NUXT_PUBLIC_DAILY_SCAN_LIMIT=2  # Down from 3
+```
+
+Option 2: Add pacing buffer (edit code)
+```typescript
+// In server/utils/reddit-rate-limit.ts
+const REDDIT_API_MIN_DELAY_MS = 2000  // Up from 1000 (2 sec between requests)
+```
+
+Option 3: Reduce team size
+```bash
+NUXT_PUBLIC_MAX_ORG_MEMBERS=2  # Down from 3 (limits concurrent users)
+```
 
 ---
 
 ## Rollback
 
 If something breaks:
-1. Set `SEARCH_API_KEY=` (empty)
+1. Unset `REDDIT_CLIENT_ID` in Vercel
 2. Scans will fail gracefully (users see error message)
 3. No data loss, all leads saved locally
 4. Fix and re-deploy
@@ -171,10 +169,10 @@ If something breaks:
 
 ## Next Steps
 
-1. Get `SEARCH_API_KEY` from https://exa.ai (1 minute signup)
-2. Set it in Vercel environment
+1. ✅ Code ready (PR #2 merged to main)
+2. Set REDDIT_CLIENT_ID/SECRET in Vercel environment
 3. Deploy
-4. Test locally first (keywords you know have Reddit results)
-5. Monitor costs for first week
+4. Test with keywords you know have Reddit activity
+5. Monitor for 48 hours for rate limit issues
 
-Questions? Check `REDDIT_RATE_LIMITS.md` for rate limiting details or `PRIMARY.md` for technical deep dive.
+Questions? Check `REDDIT_RATE_LIMITS.md` for rate limiting details.
