@@ -138,18 +138,38 @@
       <section v-if="activeCampaign" class="card">
         <div class="mb-1 flex items-center justify-between gap-3">
           <h2 class="font-medium">Keywords</h2>
-          <button
-            type="button"
-            class="btn-quiet"
-            :disabled="suggestingKeywords || !activeBrand"
-            @click="suggestKeywordIdeas"
-          >
-            {{ suggestingKeywords ? 'Thinking…' : 'Suggest with AI' }}
-          </button>
+          <div class="flex items-center gap-3">
+            <span class="text-xs" :class="keywordLimitApproaching ? 'text-warn' : 'text-mute'">
+              <span class="font-mono">{{ keywords.length }}</span> / {{ maxKeywordsPerCampaign }}
+            </span>
+            <button
+              type="button"
+              class="btn-quiet"
+              :disabled="suggestingKeywords || !activeBrand"
+              @click="suggestKeywordIdeas"
+            >
+              {{ suggestingKeywords ? 'Thinking…' : 'Suggest with AI' }}
+            </button>
+          </div>
         </div>
         <p class="mb-4 text-sm text-mute">
           What people type when they're looking for what you sell.
         </p>
+
+        <!-- Rate limiting info -->
+        <div v-if="keywords.length > 0" class="mb-4 rounded-lg border border-line/60 bg-panel-2 px-3 py-2">
+          <p class="text-xs text-mute">
+            <span v-if="scanDurationEstimate <= 5" class="text-ok">
+              ✓ Scan will take ~{{ scanDurationEstimate }}s ({{ keywords.length }} keywords × 1s pacing)
+            </span>
+            <span v-else-if="scanDurationEstimate <= 30" class="text-mute">
+              ⏱ Scan will take ~{{ scanDurationEstimate }}s ({{ keywords.length }} keywords × 1s pacing)
+            </span>
+            <span v-else class="text-warn">
+              ⚠ Scan will take ~{{ scanDurationEstimate }}s ({{ keywords.length }} keywords × 1s pacing)
+            </span>
+          </p>
+        </div>
 
         <!-- AI suggestions: proposed, not added — keywords save the moment you accept one. -->
         <div v-if="keywordIdeas.length" class="mb-4 rounded-lg border border-line bg-panel-2 p-3">
@@ -200,10 +220,27 @@
         </ul>
 
         <form class="flex flex-col gap-2 sm:flex-row" @submit.prevent="addKeyword">
-          <input v-model="newKeyword.phrase" class="input" placeholder="linktree alternative" required>
-          <input v-model="newKeyword.subreddit" class="input sm:max-w-48" placeholder="subreddit (optional)">
-          <button class="btn-ghost shrink-0" :disabled="busy">Add keyword</button>
+          <input
+            v-model="newKeyword.phrase"
+            class="input"
+            placeholder="linktree alternative"
+            :disabled="keywordLimitReached"
+            required
+          >
+          <input
+            v-model="newKeyword.subreddit"
+            class="input sm:max-w-48"
+            placeholder="subreddit (optional)"
+            :disabled="keywordLimitReached"
+          >
+          <button class="btn-ghost shrink-0" :disabled="busy || keywordLimitReached">
+            Add keyword
+          </button>
         </form>
+
+        <p v-if="keywordLimitReached" class="mt-2 text-xs text-warn">
+          Limit reached: {{ maxKeywordsPerCampaign }} keywords per campaign. Remove some to add more.
+        </p>
       </section>
 
       <!-- 5. Scan -->
@@ -216,15 +253,22 @@
             </p>
             <!-- Shown before they hit it, not after: a disabled button with no
                  explanation is worse than the limit itself. -->
-            <p v-if="quota && !quota.unlimited" class="mt-2 text-xs" :class="quotaExhausted ? 'text-warn' : 'text-mute'">
-              <template v-if="quotaExhausted">
-                Daily limit reached. Resets {{ quotaResetsIn }}.
-              </template>
-              <template v-else>
-                <span class="font-mono">{{ quota.remaining }}</span>
-                of {{ quota.limit }} scans left today
-              </template>
-            </p>
+            <div v-if="quota && !quota.unlimited" class="mt-3 space-y-2">
+              <p class="text-xs" :class="quotaExhausted ? 'text-warn' : 'text-mute'">
+                <template v-if="quotaExhausted">
+                  <strong>Daily limit reached.</strong> Resets {{ quotaResetsIn }}.
+                </template>
+                <template v-else>
+                  <strong><span class="font-mono">{{ quota.remaining }}</span> of {{ quota.limit }} scans left today</strong>
+                </template>
+              </p>
+              <p class="text-xs text-mute">
+                Rate limited to 1 keyword per second to protect against Reddit blocks.
+                <template v-if="keywords.length > 1">
+                  This scan will take ~{{ scanDurationEstimate }}s.
+                </template>
+              </p>
+            </div>
           </div>
           <button
             class="btn-primary shrink-0"
@@ -374,6 +418,8 @@ export default {
       inviteMessage: '',
       pendingRemoval: null,
       removing: false,
+      maxKeywordsPerCampaign: 50, // Rate limiting: 50 keywords × 1s = 50s max scan
+      redditApiPacingMs: 1000, // 1 second between keyword searches
     }
   },
 
@@ -390,6 +436,19 @@ export default {
 
     workspaceFull() {
       return this.members.length >= this.maxMembers
+    },
+
+    keywordLimitReached() {
+      return this.keywords.length >= this.maxKeywordsPerCampaign
+    },
+
+    keywordLimitApproaching() {
+      return this.keywords.length >= this.maxKeywordsPerCampaign * 0.75
+    },
+
+    scanDurationEstimate() {
+      // Each keyword takes ~1 second (paced API calls)
+      return this.keywords.length * (this.redditApiPacingMs / 1000)
     },
   },
 
