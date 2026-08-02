@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Brand, RedditPost } from '#shared/types'
 import type { RedditAdapter } from './reddit'
+import { enforceRedditPacing } from './reddit-rate-limit'
 import { scoreLead } from './scoring'
 
 export interface Candidate {
@@ -62,6 +63,8 @@ export async function collectCandidates(
 
     let posts: RedditPost[]
     try {
+      // Enforce rate limiting: 1 second minimum between Reddit API calls
+      await enforceRedditPacing()
       posts = await reddit.search({
         query: keyword.phrase,
         subreddit: keyword.subreddit_filter,
