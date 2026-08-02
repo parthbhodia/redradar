@@ -283,20 +283,31 @@ recommendation. The `RedditAdapter` interface makes it a drop-in swap.
 current 9 keywords and the 3-scans-per-day cap that is 27/day, **~810 per user
 per month**. Scheduled scans add to it.
 
-Priced against that (checked 2026-08-02):
+Priced against that (checked 2026-08-02). **Both `discover.post.ts` and
+`cron/scan-all.post.ts` request `limit: 25`** — Serper charges 1 credit for up
+to 10 results but **2 credits for 11–100**, so the real cost is double the
+headline rate at the depth this code actually asks for:
 
-| Provider | Rate | Per user/month |
-| --- | --- | --- |
-| SerpAPI Starter $25/1k | $0.025 | **$20.25** |
-| SerpAPI Big Data $275/30k | $0.009 | $7.43 |
-| **Serper $50/50k credits** | **$0.001** | **$0.81** |
+| Provider | Headline rate | Real rate @ depth 25 | Per user/month |
+| --- | --- | --- | --- |
+| SerpAPI Starter $25/1k | $0.025 | n/a (flat per query) | **$20.25** |
+| SerpAPI Big Data $275/30k | $0.009 | n/a (flat per query) | $7.43 |
+| Serper Starter $50/50k | $0.001 | $0.002 | **$1.62** |
+| Serper Scale $1,250/2.5M | $0.0005 | $0.001 | $0.81 |
 
 SerpAPI's Starter tier costs more per user than most plausible subscription
-prices — it is not viable. Serper is ~25× cheaper for the same Google-backed
-results and gives 2,500 free queries (~92 scans) to evaluate with. Its credits
-expire after six months, and 11–100 results costs 2 credits rather than 1, so
-request depth 10 there. SerpAPI charges the same for 1 or 100 results, so if you
-ever use it, ask for 100.
+prices — not viable. Serper is still far cheaper for the same Google-backed
+results. Free tier: 2,500 credits ÷ 2 (at depth 25) = 1,250 queries ≈ **~138
+scans** to evaluate with, before paying anything. Credits expire after six
+months.
+
+**A free lever that halves the number:** dropping the request depth to 10
+returns to Serper's 1-credit rate — $0.81/user/month on Starter instead of
+$1.62 — with no infrastructure change, just the `limit` passed to
+`reddit.search()`. Whether fewer results per query costs real lead quality is
+untested; worth checking once real data is flowing. SerpAPI, by contrast,
+charges the same whether you ask for 1 result or 100, so request depth 100
+there if it's ever used.
 
 SerpAPI's "U.S. Legal Shield" indemnifies scraping *Google*. It does nothing
 about the Reddit exposure in §3.9, which is the actual legal question — do not
