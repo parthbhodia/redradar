@@ -418,7 +418,7 @@ export default {
       inviteMessage: '',
       pendingRemoval: null,
       removing: false,
-      maxKeywordsPerCampaign: 50, // Rate limiting: 50 keywords × 1s = 50s max scan
+      maxKeywordsPerCampaign: 10, // Rate limiting: 10 keywords × 1s = 10s max scan
       redditApiPacingMs: 1000, // 1 second between keyword searches
     }
   },
@@ -695,6 +695,12 @@ export default {
     },
 
     async suggestKeywordIdeas() {
+      // Validate brand is set up first
+      if (!this.activeBrand?.name) {
+        this.error = 'Fill in the brand name first, then try again.'
+        return
+      }
+
       this.suggestingKeywords = true
       this.error = ''
       this.keywordIdeas = []
@@ -705,6 +711,9 @@ export default {
           body: { campaignId: this.activeCampaignId },
         })
         this.keywordIdeas = result.keywords ?? []
+        if (!this.keywordIdeas.length) {
+          this.error = 'No keywords suggested. Try filling in more brand details (description, competitors).'
+        }
       } catch (e) {
         this.error = e.data?.statusMessage || e.message
       } finally {

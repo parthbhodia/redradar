@@ -81,6 +81,11 @@ export async function suggestKeywords(
     input.brand.competitors?.length ? `Competitors: ${input.brand.competitors.join(', ')}` : null,
   ].filter(Boolean).join('\n')
 
+  // Debug: log if brand is incomplete
+  if (!input.brand.description && !input.brand.tagline) {
+    console.warn('[KeywordSuggest] Warning: Brand has minimal data (no description/tagline). Qwen may return empty suggestions.')
+  }
+
   const prompt = [
     `<brand>\n${brandLines}\n</brand>`,
     input.existing.length
@@ -124,18 +129,27 @@ export async function suggestKeywords(
     try {
       parsed = JSON.parse(text)
     } catch {
+      console.error('[KeywordSuggest] Parse error:', text.substring(0, 200))
       throw createError({ statusCode: 502, statusMessage: 'Could not parse the suggestions.' })
     }
+
+    console.log('[KeywordSuggest] Qwen returned:', parsed.keywords?.length ?? 0, 'keywords')
 
     // Belt-and-braces dedupe — the model is told to skip these, but a near-miss
     // would otherwise surface an Add button that silently conflicts on insert.
     const seen = new Set(input.existing.map(p => p.trim().toLowerCase()))
-    return (parsed.keywords ?? []).filter((idea) => {
+    const filtered = (parsed.keywords ?? []).filter((idea) => {
       const key = idea.phrase?.trim().toLowerCase()
       if (!key || seen.has(key)) return false
       seen.add(key)
       return true
     })
+
+    if (parsed.keywords?.length && !filtered.length) {
+      console.warn('[KeywordSuggest] All suggestions filtered (duplicates with existing)')
+    }
+
+    return filtered
   } catch (error) {
     throw createError({
       statusCode: 502,
