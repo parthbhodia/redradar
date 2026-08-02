@@ -257,12 +257,17 @@
         <div class="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 class="font-medium">Run a scan</h2>
-            <p class="mt-1 text-sm text-mute">
+            <p v-if="scanBlocked" class="mt-1 flex items-center gap-2 text-sm text-warn">
+              <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" aria-hidden="true" />
+              <template v-if="scanBlockedBy">{{ scanBlockedBy }} started a scan for this campaign.</template>
+              <template v-else>This campaign is already being scanned.</template>
+            </p>
+            <p v-else class="mt-1 text-sm text-mute">
               Searches Reddit for each keyword, scores what it finds, and files it in your inbox.
             </p>
             <!-- Shown before they hit it, not after: a disabled button with no
                  explanation is worse than the limit itself. -->
-            <div v-if="quota && !quota.unlimited" class="mt-3 space-y-2">
+            <div v-if="quota && !quota.unlimited && !scanBlocked" class="mt-3 space-y-2">
               <p class="text-xs" :class="quotaExhausted ? 'text-warn' : 'text-mute'">
                 <template v-if="quotaExhausted">
                   <strong>Daily limit reached.</strong> Resets {{ quotaResetsIn }}.
@@ -280,11 +285,29 @@
             </div>
           </div>
           <button
+            v-if="scanBlocked"
+            class="btn-ghost shrink-0"
+            :disabled="scanning"
+            @click="runScan()"
+          >
+            {{ scanning ? 'Checking…' : 'Check again' }}
+          </button>
+          <button
+            v-else
             class="btn-primary shrink-0"
             :disabled="scanning || !keywords.length || quotaExhausted"
-            @click="runScan"
+            @click="runScan()"
           >
             {{ scanning ? 'Scanning…' : 'Scan now' }}
+          </button>
+        </div>
+
+        <!-- Recently scanned: ask before spending a scan on a near-repeat,
+             rather than silently letting it burn quota. -->
+        <div v-if="scanCooldown && !scanBlocked" class="mt-4 flex items-center justify-between gap-3 rounded-lg border border-line-2 bg-panel-2 px-3 py-2.5">
+          <p class="text-xs text-mute">Last scanned {{ scanCooldownAgo }}. Unlikely to find much new yet.</p>
+          <button class="btn-ghost shrink-0" :disabled="scanning" @click="runScan(true)">
+            {{ scanning ? 'Scanning…' : 'Scan anyway' }}
           </button>
         </div>
 
@@ -344,6 +367,14 @@ export default {
       newKeyword: { phrase: '', subreddit: '' },
       keywords: [],
       scanResult: null,
+      // Someone else's scan for this campaign is in flight.
+      scanBlocked: false,
+      // Their display_name, or null if the server didn't have one to give us
+      // (scanBlocked can be true with this still null).
+      scanBlockedBy: null,
+      // Non-null (ISO timestamp of the last scan) when the server wants a
+      // "scan anyway?" confirmation before spending quota on a near-repeat.
+      scanCooldown: null,
       brandForm: { name: '', tagline: '', description: '', voice: '', competitors: '' },
       suggesting: false,
       suggestHint: '',
@@ -372,6 +403,12 @@ export default {
       // Each keyword takes ~1 second (paced API calls)
       return this.keywords.length * (this.redditApiPacingMs / 1000)
     },
+
+    scanCooldownAgo() {
+      if (!this.scanCooldown) return ''
+      const minutes = Math.max(1, Math.round((Date.now() - new Date(this.scanCooldown).getTime()) / 60_000))
+      return minutes === 1 ? '1 minute ago' : `${minutes} minutes ago`
+    },
   },
 
   watch: {
@@ -393,6 +430,9 @@ export default {
       immediate: true,
       handler(id) {
         this.scanResult = null
+        this.scanBlocked = false
+        this.scanBlockedBy = null
+        this.scanCooldown = null
         this.keywordSuggestError = ''
         this.keywordIdeas = []
         if (id) this.loadKeywords()
@@ -661,18 +701,22 @@ export default {
       })
     },
 
-    async runScan() {
+    async runScan(force = false) {
       this.scanning = true
       this.error = ''
       this.scanResult = null
+      this.scanBlocked = false
+      this.scanBlockedBy = null
+      if (force) this.scanCooldown = null
 
       try {
         const result = await $fetch('/api/discover', {
           method: 'POST',
-          body: { campaignId: this.activeCampaignId },
+          body: { campaignId: this.activeCampaignId, force },
         })
         this.scanResult = result
         this.setQuota(result.quota)
+        this.scanCooldown = null
 
         // The badge is up in the header and easy to miss, so say it out loud on
         // the last scan of the day rather than letting tomorrow be a surprise.
@@ -692,6 +736,27 @@ export default {
           await navigateTo('/app/inbox')
         }
       } catch (e) {
+        const data = e.data?.data ?? {}
+
+        // Someone else's scan for this campaign is genuinely in flight —
+        // nothing to confirm, just wait for it.
+        if (data.scanBlocked) {
+          this.scanBlocked = true
+          this.scanBlockedBy = data.blockedBy ?? null
+          this.toast(
+            data.blockedBy ? `${data.blockedBy} is already scanning this campaign.` : 'This campaign is already being scanned.',
+            { tone: 'warn' },
+          )
+          return
+        }
+
+        // Recently scanned, probably nothing new yet — ask before spending
+        // one of the day's scans on a near-duplicate run.
+        if (data.needsConfirm) {
+          this.scanCooldown = data.lastScannedAt ?? new Date().toISOString()
+          return
+        }
+
         this.error = e.data?.statusMessage || e.message
         // 429 means the allowance is gone; reflect it without another request.
         if (e.statusCode === 429 || e.response?.status === 429) {

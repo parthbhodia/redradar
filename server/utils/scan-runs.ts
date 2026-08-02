@@ -112,3 +112,74 @@ export async function failScanRun(
 
   if (error) console.warn('[scan-runs] could not mark failure:', error.message)
 }
+
+/**
+ * A `running` row still on the clock: something else genuinely has this
+ * campaign locked. Older than this, the process behind it almost certainly
+ * died (server restart, crashed request) rather than still being in flight —
+ * matches the queue's own SCAN_TIMEOUT_MS in scan-queue.ts.
+ */
+const RUNNING_STALE_MS = 5 * 60 * 1000
+
+/** Scanned this recently and it's probably still the same Reddit content. */
+const COOLDOWN_MS = 5 * 60 * 1000
+
+export interface CampaignScanState {
+  /** Someone else's scan is genuinely in flight right now. */
+  blocked: boolean
+  blockedBy?: string | null
+  blockedStartedAt?: string
+  /** Not blocked, but recent enough to ask "scan anyway?" before spending quota. */
+  needsConfirm: boolean
+  lastScannedAt?: string
+}
+
+/**
+ * Reads the campaign's most recent scan_runs row to answer two questions
+ * before a new scan starts: is one already running (block it), and if not,
+ * was the last one recent enough that a repeat is unlikely to find anything
+ * new (ask first, don't just spend the quota).
+ *
+ * DB-backed rather than in-memory: unlike scan-queue.ts's per-user queue,
+ * this is the source of truth across every serverless instance, not just
+ * whichever one happens to be warm.
+ */
+export async function checkCampaignScanState(
+  admin: SupabaseClient,
+  campaignId: string,
+): Promise<CampaignScanState> {
+  const { data, error } = await admin
+    .from('scan_runs')
+    .select('id, status, started_at, profiles(display_name)')
+    .eq('campaign_id', campaignId)
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  // No history, or the table isn't reachable — nothing to block on.
+  if (error || !data) return { blocked: false, needsConfirm: false }
+
+  const age = Date.now() - new Date(data.started_at as string).getTime()
+
+  if (data.status === 'running') {
+    if (age < RUNNING_STALE_MS) {
+      const profile = Array.isArray(data.profiles) ? data.profiles[0] : data.profiles
+      return {
+        blocked: true,
+        blockedBy: (profile as { display_name?: string } | null)?.display_name ?? null,
+        blockedStartedAt: data.started_at as string,
+        needsConfirm: false,
+      }
+    }
+    // Stale: whoever opened it never closed it out. Close it now so it stops
+    // blocking every scan attempt after it.
+    await failScanRun(admin, data.id as string, 'Timed out — the process likely died mid-scan.')
+    return { blocked: false, needsConfirm: false }
+  }
+
+  if (age < COOLDOWN_MS) {
+    return { blocked: false, needsConfirm: true, lastScannedAt: data.started_at as string }
+  }
+
+  return { blocked: false, needsConfirm: false }
+}
