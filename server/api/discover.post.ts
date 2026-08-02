@@ -5,15 +5,28 @@ import { isLocalMode, listKeywords, upsertLeads } from '../utils/local-db'
 import { createRedditAdapter } from '../utils/reddit'
 import { checkRedditRateLimitStatus } from '../utils/reddit-rate-limit'
 import { getScanQuota, untilReset } from '../utils/scan-quota'
+import { completeScan, requestScanAccess, type ScanQueueStatus } from '../utils/scan-queue'
 import { failScanRun, finishScanRun, startScanRun } from '../utils/scan-runs'
 
-export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
+export default defineEventHandler(async (event): Promise<DiscoverResponse & { queueStatus?: ScanQueueStatus }> => {
   const body = await readBody<DiscoverRequest>(event)
   if (!body?.campaignId) {
     throw createError({ statusCode: 400, statusMessage: 'campaignId is required.' })
   }
 
   const { client, campaign, brand, local, user } = await requireCampaign(event, body.campaignId)
+
+  // Check global scan queue (protects shared Reddit OAuth credentials)
+  const queueResult = requestScanAccess(user?.id ?? 'anonymous', body.campaignId)
+  if (!queueResult.canProceed) {
+    throw createError({
+      statusCode: 202, // 202 Accepted - queued, not rejected
+      statusMessage: queueResult.status.message,
+      data: { queueStatus: queueResult.status },
+    })
+  }
+
+  const scanToken = queueResult.token!
 
   let keywords: Array<{ phrase: string, subreddit_filter: string | null }>
   if (local) {
@@ -93,6 +106,7 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
   try {
     collected = await collectCandidates(keywords, brand, reddit, limit)
   } catch (error) {
+    completeScan(scanToken) // Release queue slot
     if (admin) await failScanRun(admin, runId, (error as Error).message)
     throw createError({ statusCode: 502, statusMessage: (error as Error).message })
   }
@@ -112,6 +126,7 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
         byKeyword: new Map(),
       })
     }
+    completeScan(scanToken) // Release queue slot
     return { scanned, inserted: 0, updated: 0, skipped: 0, keywords: keywords.length, errors, quota: quotaAfter }
   }
 
@@ -131,6 +146,7 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
         posted_at: c.post.createdAt,
       })),
     )
+    completeScan(scanToken) // Release queue slot
     return {
       scanned,
       inserted: result.inserted,
@@ -157,6 +173,7 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
       byKeyword: result.byKeyword,
     })
 
+    completeScan(scanToken) // Release queue slot
     return {
       scanned,
       inserted: result.inserted,
@@ -167,6 +184,7 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
       quota: quotaAfter,
     }
   } catch (error) {
+    completeScan(scanToken) // Release queue slot
     await failScanRun(admin, runId, (error as Error).message)
     throw createError({ statusCode: 500, statusMessage: (error as Error).message })
   }
