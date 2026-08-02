@@ -1,6 +1,7 @@
 import type { RedditPost } from '#shared/types'
 import { createOpenCliAdapter } from './opencli-reddit'
 import { createSearchIndexAdapter } from './search-index'
+import { createShredditListingAdapter } from './shreddit-listing'
 
 export interface RedditSearchOptions {
   query: string
@@ -16,7 +17,7 @@ export interface RedditSearchOptions {
  * for the official API or a SERP provider without touching discovery/scoring.
  */
 export interface RedditAdapter {
-  readonly mode: 'oauth' | 'public' | 'search'
+  readonly mode: 'oauth' | 'public' | 'search' | 'listing'
   search(options: RedditSearchOptions): Promise<RedditPost[]>
 }
 
@@ -161,8 +162,11 @@ function createOAuthAdapter(creds: Required<Pick<RedditCredentials, 'clientId' |
  * The landscape as of 2026-08: OAuth credentials can no longer be issued, and
  * the public JSON endpoints return 403 to every user agent. OpenCLI works but
  * drives a real Chrome, so it exists only on a developer's machine — never on
- * Vercel. That left production with no working source at all, which is why the
- * search index sits above the legacy paths rather than below them.
+ * Vercel. The shreddit-listing adapter is free and currently open even in
+ * production, but it can only browse a named subreddit, not search all of
+ * Reddit, and it is an undocumented frontend detail rather than a published
+ * API — see PRIMARY.md 3.9.5 and 3.9.7. The search index costs money and is
+ * used only if a key is configured.
  */
 export function createRedditAdapter(creds: RedditCredentials): RedditAdapter {
   if (creds.clientId && creds.clientSecret) {
@@ -178,14 +182,18 @@ export function createRedditAdapter(creds: RedditCredentials): RedditAdapter {
     : null
 
   // OpenCLI still wins where it exists: it sees reply counts and upvotes, which
-  // the index cannot, and those drive two of the scorer's signals.
+  // the search index cannot, and those drive two of the scorer's signals. The
+  // listing adapter sees the same fields as OpenCLI, for free, but only for
+  // keywords that have a subreddit set — it throws otherwise, which the chain
+  // below treats as "try the next source", not "nothing found".
   const opencli = process.env.REDDIT_USE_OPENCLI !== '0' ? createOpenCliAdapter() : null
+  const listing = createShredditListingAdapter(creds.userAgent)
   const pub = createPublicAdapter(creds.userAgent)
 
-  const chain = [opencli, searchIndex, pub].filter((a): a is RedditAdapter => a !== null)
+  const chain = [opencli, listing, searchIndex, pub].filter((a): a is RedditAdapter => a !== null)
 
   return {
-    mode: searchIndex && !opencli ? 'search' : 'oauth',
+    mode: opencli ? 'oauth' : searchIndex ? 'search' : 'listing',
     async search(options) {
       let firstError: unknown
       for (const adapter of chain) {

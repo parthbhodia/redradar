@@ -358,7 +358,7 @@ stating the intent outright. Consequences:
   bot does. Every lead in the database so far came from local OpenCLI scans.
   Fine for personal dogfooding; not a foundation to scale a business on.
 
-### 3.9.5 Reddit's internal `svc/shreddit` endpoint: open, real dates — still rejected
+### 3.9.5 Reddit's internal `svc/shreddit` endpoint — adopted as a free stopgap
 
 A vendor blog (scrape.do) selling a residential-proxy bypass described
 Reddit's internal frontend data endpoint:
@@ -376,8 +376,8 @@ directly, no vendor, no bypass:
   subreddit** (basic site function, low value to a rival index). Consistent,
   not a fluke.
 
-**Rejected for production anyway, for two reasons unrelated to whether it's
-currently blocked:**
+**My recommendation was against building on this, for two reasons unrelated to
+whether it's currently blocked:**
 
 1. **Not an API — a frontend implementation detail.** `.json` has been stable
    for a decade; this path is whatever the current UI happens to call
@@ -386,20 +386,50 @@ currently blocked:**
 2. **The policy stance doesn't depend on being caught.** This is the literal
    endpoint that vendor's paid bypass targets — the only difference is no bypass
    was needed *this time, from this IP, in a short burst*. Robots.txt still says
-   `Disallow: /`. Pacing requests to avoid detection doesn't change that; it's
-   optimizing for not getting caught doing the thing Reddit has already said,
-   on the record, it doesn't want done. **Do not build request-pacing/scheduling
-   around this endpoint** — that effort belongs on the Serper/caching path
-   instead, which is actually licensed.
+   `Disallow: /`. Pacing requests to avoid detection doesn't change that.
 
-Also worth flagging on that vendor post: its FAQ cites *hiQ v. LinkedIn* as
+**The user's call, made explicitly and knowingly: use it anyway, for now.**
+Pre-revenue, cost-sensitive, doesn't want to pay for Serper yet. That's a
+legitimate stopgap decision — recorded here so it reads as a deliberate choice
+made with the risks stated up front, not a gap in judgement. Do not
+"upgrade" this to request-pacing or scheduling to reduce detection risk — that
+effort belongs on the Serper/caching path when it's time to pay for it, not on
+extending the life of a free source built on the thing Reddit has said,
+on the record, it doesn't want automated.
+
+**Shipped:** `server/utils/shreddit-listing.ts`, wired into
+`createRedditAdapter`'s chain (`opencli → listing → searchIndex → public`).
+Verified end-to-end against live Reddit, not stubbed: real posts, real
+`created-timestamp` (parses correctly), real `comment-count`/`score`, a
+same-scan cache confirmed to fetch each distinct subreddit once regardless of
+how many keywords reference it, and a keyword with no subreddit correctly
+*throws* rather than silently returning `[]` — same principle as the
+numComments/createdAt null-handling in 3.9.1: a structural gap should be
+visible, never indistinguishable from "nothing new today".
+
+**A real, non-obvious header requirement, found by testing, not guessed:**
+sending only `User-Agent` gets **403 from Node's `fetch`**, identical URL,
+identical UA string that worked fine via `curl`. curl sends `Accept: */*` by
+default; Node's `fetch` sends no `Accept` at all unless told to. Adding
+`Accept` and `Accept-Language` explicitly turned the 403 into a 200. If this
+ever mysteriously stops working after a refactor, **check those two headers
+before assuming Reddit closed the endpoint.**
+
+**The limitation that matters most operationally: this can only browse a
+named subreddit, never search all of Reddit** — there is no free "search"
+equivalent (§3.9.2, §3.9.5's own search-page test, and `/search.json` all
+0'd). **Every keyword needs a `subreddit_filter` set, or this adapter throws
+for it and the keyword gets nothing from this source.** Worth auditing the
+existing keyword list for this before assuming a scan is actually working.
+
+Separately, on that vendor's blog post: its FAQ cites *hiQ v. LinkedIn* as
 blanket legal cover. That case was scraping public data with no active
 technical countermeasure in place; this is explicitly about defeating a
 reCAPTCHA and a deliberate soft-block. Not the same fact pattern — the
 citation is doing more work than it supports. Not legal advice, just: don't
 take a vendor's own reassurance about their own product at face value.
 
-### 3.9.6 Suggestions that come up and don't work — checked, not assumed
+### 3.9.7 Suggestions that come up and don't work — checked, not assumed
 
 - **RSS / subreddit feeds.** Real post timestamps, sub-hour freshness, free —
   genuinely better than Exa on the one signal that matters. But the rate limit
@@ -413,6 +443,15 @@ take a vendor's own reassurance about their own product at face value.
   OAuth endpoints in `reddit.ts`. Needs the same `client_id`/`client_secret`
   that §3.9 already establishes cannot be obtained. Solves nothing on its own,
   and this codebase isn't Python regardless.
+- **geddit** (github.com/kaangiray26/geddit) and any similar "no-auth Reddit
+  client" library. Read the actual source, not just the pitch: it's a plain
+  `fetch("reddit.com/r/{sub}/new.json")`/`fetch(".../search.json")`, no headers,
+  no proxy, no bypass — the identical dead endpoints in §3.9.5, `searchAll`
+  included. It's also built to run in an end-user's browser tab, not a server;
+  RedIntelli's scans are server-triggered (a POST route and an unattended cron),
+  with no browser ever in the loop, so even the one context where "real
+  request" sometimes gets through doesn't apply here. Nothing this offers isn't
+  already covered, worse, by `shreddit-listing.ts`.
 - **Third-party "Reddit API" wrappers (e.g. ScrapeCreators).** Response shape is
   genuinely good — `votes`, `num_comments`, `created_at` all present, better
   than Exa on every field. Rejected anyway: its own marketing calls it *"an
