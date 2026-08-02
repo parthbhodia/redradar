@@ -58,7 +58,11 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse & { qu
     searchApiKey: config.searchApiKey,
   })
 
-  const limit = Math.min(Math.max(body.limit ?? 25, 1), 100)
+  // Hard cap at 25 regardless of what a direct call asks for — the UI never
+  // sends `limit` itself, so this only matters against someone hitting the
+  // endpoint straight, and 100 results/keyword is a lot of unpaced Reddit
+  // API surface to hand out on request.
+  const limit = Math.min(Math.max(body.limit ?? 25, 1), 25)
 
   // Local mode keeps its own SQLite store and has no scan history.
   const cloud = !(local || isLocalMode())
