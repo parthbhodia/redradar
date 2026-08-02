@@ -3,6 +3,8 @@ import type { Brand, RedditPost } from '#shared/types'
 export interface ScoreResult {
   score: number
   signals: string[]
+  /** 'weak' means the keyword never actually matched — see WEAK_MATCH_CAP. */
+  matchStrength: 'strong' | 'partial' | 'weak'
 }
 
 /** Phrases that suggest someone is actively shopping rather than just chatting. */
@@ -222,5 +224,6 @@ export function scoreLead(post: RedditPost, phrase: string, brand?: Pick<Brand, 
   return {
     score: Math.max(0, Math.min(100, Math.round(score))),
     signals,
+    matchStrength,
   }
 }

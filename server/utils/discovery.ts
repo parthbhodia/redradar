@@ -87,10 +87,16 @@ export async function collectCandidates(
       // returns them, but a reply there reaches nobody.
       if (/^u[/_]/i.test(post.subreddit ?? '')) continue
 
-      const { score, signals } = scoreLead(post, keyword.phrase, brand)
+      const { score, signals, matchStrength } = scoreLead(post, keyword.phrase, brand)
       if (outcome.top_score === null || score > outcome.top_score) {
         outcome.top_score = score
       }
+
+      // A weak match means the keyword never actually appeared in any
+      // meaningful way — the scorer only capped its score as a signal for
+      // debugging. Letting it through anyway is how an unrelated recipe post
+      // ends up in the inbox next to "linktree alternative" leads.
+      if (matchStrength === 'weak') continue
 
       const existing = best.get(post.id)
       if (!existing || score > existing.score) {
