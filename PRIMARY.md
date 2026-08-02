@@ -277,6 +277,35 @@ quickly and exposes date restriction, which is precisely what Exa lacks here.
 Untested — no key available at the time of writing — so treat as a lead, not a
 recommendation. The `RedditAdapter` interface makes it a drop-in swap.
 
+### 3.9.3 Search is a per-user COGS line, and the scan cap protects it
+
+`runScan` → `discovery.ts` issues **one search per keyword per scan**. At the
+current 9 keywords and the 3-scans-per-day cap that is 27/day, **~810 per user
+per month**. Scheduled scans add to it.
+
+Priced against that (checked 2026-08-02):
+
+| Provider | Rate | Per user/month |
+| --- | --- | --- |
+| SerpAPI Starter $25/1k | $0.025 | **$20.25** |
+| SerpAPI Big Data $275/30k | $0.009 | $7.43 |
+| **Serper $50/50k credits** | **$0.001** | **$0.81** |
+
+SerpAPI's Starter tier costs more per user than most plausible subscription
+prices — it is not viable. Serper is ~25× cheaper for the same Google-backed
+results and gives 2,500 free queries (~92 scans) to evaluate with. Its credits
+expire after six months, and 11–100 results costs 2 credits rather than 1, so
+request depth 10 there. SerpAPI charges the same for 1 or 100 results, so if you
+ever use it, ask for 100.
+
+SerpAPI's "U.S. Legal Shield" indemnifies scraping *Google*. It does nothing
+about the Reddit exposure in §3.9, which is the actual legal question — do not
+pay the premium expecting it to.
+
+**Consequence for product design:** every keyword a user adds raises COGS
+linearly, and the daily scan cap is now a margin control as much as an abuse
+control. Changing `DAILY_SCAN_LIMIT` or `MAX_ORG_MEMBERS` moves the cost line.
+
 ### 3.10 Local mode is a different product
 
 `REDRADAR_LOCAL=1` runs on SQLite with no Supabase. **No teams, no invites, no
