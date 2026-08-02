@@ -41,6 +41,24 @@
             <span class="sr-only">left today, resets {{ quotaResetsIn }}</span>
           </span>
 
+          <NuxtLink
+            v-if="showSeats"
+            to="/app/settings"
+            class="chip"
+            :class="seatsFull ? 'border-warn/50 text-warn' : 'hover:border-line-2'"
+            :title="`${members.length} of ${maxMembers} seats used — manage team in Settings`"
+          >
+            <svg viewBox="0 0 16 16" class="h-3 w-3 opacity-70" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <circle cx="6" cy="5.5" r="2" />
+              <path d="M2.5 13c0-2 1.5-3.5 3.5-3.5s3.5 1.5 3.5 3.5" stroke-linecap="round" />
+              <circle cx="11.5" cy="6" r="1.5" />
+              <path d="M10 9.8c1.6.2 2.8 1.5 2.8 3.2" stroke-linecap="round" />
+            </svg>
+            <span class="font-mono">{{ members.length }}</span>
+            <span class="text-mute">/ {{ maxMembers }}</span>
+            <span class="sr-only">seats used — open Settings to manage the team</span>
+          </NuxtLink>
+
           <button class="btn-quiet" @click="signOut">Sign out</button>
         </div>
       </div>
@@ -59,6 +77,7 @@ export default {
     useHead({ meta: [{ name: 'theme-color', content: '#08090b' }] })
     const { org } = useWorkspace()
     const { quota, exhausted, load, resetsIn } = useScanQuota()
+    const { members, load: loadTeam } = useTeam()
     return {
       localMode: config.public.localMode,
       supabase: config.public.localMode ? null : useSupabaseClient(),
@@ -68,6 +87,9 @@ export default {
       quotaExhausted: exhausted,
       loadQuota: load,
       quotaResetsInFn: resetsIn,
+      members,
+      loadTeam,
+      maxMembers: config.public.maxOrgMembers,
     }
   },
 
@@ -95,6 +117,16 @@ export default {
         ? `Daily scan limit reached. Resets ${this.quotaResetsIn}.`
         : `${this.quota.remaining} of ${this.quota.limit} scans left today. Resets ${this.quotaResetsIn}.`
     },
+
+    // Local mode has no team concept, and an empty list before the first
+    // load would otherwise flash a misleading "0 / 3" badge.
+    showSeats() {
+      return !this.localMode && this.members.length > 0
+    },
+
+    seatsFull() {
+      return this.members.length >= this.maxMembers
+    },
   },
 
   watch: {
@@ -107,7 +139,10 @@ export default {
   },
 
   mounted() {
-    if (!this.localMode) this.loadQuota()
+    if (!this.localMode) {
+      this.loadQuota()
+      this.loadTeam()
+    }
   },
 
   methods: {

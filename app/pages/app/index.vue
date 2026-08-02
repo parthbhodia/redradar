@@ -302,79 +302,6 @@
           <NuxtLink to="/app/inbox" class="btn-ghost mt-4">Open inbox</NuxtLink>
         </div>
       </section>
-
-      <!-- 6. Team -->
-      <section v-if="!localMode" class="card">
-        <div class="mb-1 flex items-baseline justify-between gap-3">
-          <h2 class="font-medium">Team</h2>
-          <span v-if="members.length" class="text-xs" :class="workspaceFull ? 'text-warn' : 'text-mute'">
-            <span class="font-mono">{{ members.length }}</span> of {{ maxMembers }} seats
-          </span>
-        </div>
-        <p class="mb-4 text-sm text-mute">
-          Everyone here shares this workspace: same campaigns, same inbox.
-        </p>
-
-        <ul v-if="members.length" class="mb-4 space-y-2">
-          <li
-            v-for="member in members"
-            :key="member.user_id"
-            class="flex items-center justify-between gap-3 rounded-lg border border-line bg-panel-2 px-3 py-2"
-          >
-            <div class="min-w-0">
-              <p class="truncate text-sm">{{ member.profiles?.display_name ?? 'Unknown' }}</p>
-              <p class="truncate text-xs text-mute">{{ member.profiles?.email }}</p>
-            </div>
-
-            <div class="flex shrink-0 items-center gap-2">
-              <span class="chip capitalize">{{ member.role }}</span>
-
-              <!-- Two-step, because removal also releases whatever they claimed. -->
-              <template v-if="canRemove(member)">
-                <template v-if="pendingRemoval === member.user_id">
-                  <button
-                    class="btn-quiet text-signal"
-                    :disabled="removing"
-                    @click="removeMember(member)"
-                  >
-                    {{ removing ? 'Removing…' : 'Confirm' }}
-                  </button>
-                  <button class="btn-quiet" :disabled="removing" @click="pendingRemoval = null">
-                    Cancel
-                  </button>
-                </template>
-                <button v-else class="btn-quiet" @click="pendingRemoval = member.user_id">
-                  Remove
-                </button>
-              </template>
-            </div>
-          </li>
-        </ul>
-
-        <p v-if="workspaceFull" class="text-xs text-mute">
-          This workspace is full. {{ maxMembers }} members is the limit.
-        </p>
-        <form v-else-if="canInvite" class="flex flex-col gap-2 sm:flex-row" @submit.prevent="invite">
-          <input
-            v-model="inviteEmail"
-            class="input"
-            type="email"
-            autocomplete="off"
-            placeholder="teammate@company.com"
-            required
-          >
-          <button class="btn-ghost shrink-0" :disabled="inviting">
-            {{ inviting ? 'Inviting…' : 'Invite' }}
-          </button>
-        </form>
-        <p v-else-if="members.length" class="text-xs text-mute">
-          Only owners and admins can invite.
-        </p>
-
-        <p v-if="inviteMessage" class="mt-3 rounded-lg border border-ok/30 bg-ok/10 px-3 py-2 text-sm text-ok">
-          {{ inviteMessage }}
-        </p>
-      </section>
     </template>
   </div>
 </template>
@@ -399,7 +326,6 @@ export default {
       markQuotaExhausted: markExhausted,
       quotaResetsInFn: resetsIn,
       toast,
-      maxMembers: config.public.maxOrgMembers,
       dailyScanLimit: config.public.dailyScanLimit,
       ...workspace,
     }
@@ -424,12 +350,6 @@ export default {
       assumptions: [],
       suggestingKeywords: false,
       keywordIdeas: [],
-      members: [],
-      inviteEmail: '',
-      inviting: false,
-      inviteMessage: '',
-      pendingRemoval: null,
-      removing: false,
       maxKeywordsPerCampaign: 10, // Rate limiting: 10 keywords × 1s = 10s max scan
       redditApiPacingMs: 1000, // 1 second between keyword searches
     }
@@ -438,16 +358,6 @@ export default {
   computed: {
     quotaResetsIn() {
       return this.quotaResetsInFn()
-    },
-
-    canInvite() {
-      const meId = this.me?.id
-      const mine = this.members.find(m => m.user_id === meId)
-      return ['owner', 'admin'].includes(mine?.role)
-    },
-
-    workspaceFull() {
-      return this.members.length >= this.maxMembers
     },
 
     keywordLimitReached() {
@@ -494,7 +404,6 @@ export default {
   async mounted() {
     try {
       await this.load()
-      if (!this.localMode && this.org) await this.loadMembers()
     } catch (e) {
       this.error = e.message
     }
@@ -515,75 +424,6 @@ export default {
 
     createWorkspace() {
       return this.run(() => this.createOrg(this.orgName))
-    },
-
-    async loadMembers() {
-      const { data, error } = await this.supabase
-        .from('org_members')
-        .select('user_id, role, created_at, profiles!org_members_user_profile_fkey(display_name, email)')
-        .order('created_at')
-
-      // Before migration 0002 the profiles table doesn't exist; keep Setup
-      // usable and just leave the team list empty.
-      if (!error) this.members = data ?? []
-    },
-
-    // Owners are the workspace's anchor and the role can't be transferred, so
-    // there's no safe way to remove one. Removing yourself isn't this button.
-    canRemove(member) {
-      return this.canInvite && member.role !== 'owner' && member.user_id !== this.me?.id
-    },
-
-    async removeMember(member) {
-      this.removing = true
-      this.error = ''
-      this.inviteMessage = ''
-
-      try {
-        const result = await $fetch('/api/member-remove', {
-          method: 'POST',
-          body: { userId: member.user_id },
-        })
-        this.toast(`${result.removed} was removed.`, {
-          tone: 'success',
-          detail: result.released
-            ? `${result.released} claimed ${result.released === 1 ? 'lead is' : 'leads are'} back in the inbox.`
-            : undefined,
-        })
-        this.pendingRemoval = null
-        await this.loadMembers()
-      } catch (e) {
-        this.error = e.data?.statusMessage || e.message
-        this.toast('Could not remove them.', { tone: 'error', detail: this.error })
-      } finally {
-        this.removing = false
-      }
-    },
-
-    async invite() {
-      this.inviting = true
-      this.error = ''
-      this.inviteMessage = ''
-
-      try {
-        const result = await $fetch('/api/invite', {
-          method: 'POST',
-          body: { email: this.inviteEmail },
-        })
-        this.inviteMessage = result.status === 'invited'
-          ? `Invite sent to ${result.email}. They'll land in this workspace when they accept.`
-          : `${result.email} already had an account, so they were added directly.`
-        this.inviteEmail = ''
-        await this.loadMembers()
-      } catch (e) {
-        this.error = e.data?.statusMessage || e.message
-        this.toast('Could not send the invite.', { tone: 'error', detail: this.error })
-        // A full workspace usually means our seat count was stale — someone
-        // else invited while this page sat open. Re-read so the form hides.
-        if (e.statusCode === 409 || e.response?.status === 409) await this.loadMembers()
-      } finally {
-        this.inviting = false
-      }
     },
 
     async suggestBrand() {
