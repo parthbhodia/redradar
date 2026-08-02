@@ -358,7 +358,48 @@ stating the intent outright. Consequences:
   bot does. Every lead in the database so far came from local OpenCLI scans.
   Fine for personal dogfooding; not a foundation to scale a business on.
 
-### 3.9.5 Suggestions that come up and don't work — checked, not assumed
+### 3.9.5 Reddit's internal `svc/shreddit` endpoint: open, real dates — still rejected
+
+A vendor blog (scrape.do) selling a residential-proxy bypass described
+Reddit's internal frontend data endpoint:
+`GET /svc/shreddit/community-more-posts/{sort}/?name={subreddit}`. Tested
+directly, no vendor, no bypass:
+
+- **4 rapid repeats, 3 different subreddits, zero degradation** — a real title
+  ("Best inshore rods with a heavy backbone…"), real `created-timestamp`
+  minutes old, real `score`/`comment-count`. More durable than RSS, which
+  rate-limited on the very next request.
+- **The equivalent search HTML page (`/search/?q=`) returned zero results** —
+  same outcome as `/search.json` and `search.rss`. Every mechanism tried today
+  draws the identical line: Reddit hardens **search** (commercial value,
+  licensed exclusively to Google) far more than **browsing one named
+  subreddit** (basic site function, low value to a rival index). Consistent,
+  not a fluke.
+
+**Rejected for production anyway, for two reasons unrelated to whether it's
+currently blocked:**
+
+1. **Not an API — a frontend implementation detail.** `.json` has been stable
+   for a decade; this path is whatever the current UI happens to call
+   internally, and can change shape with the next redesign, with no
+   deprecation window and nothing to monitor for.
+2. **The policy stance doesn't depend on being caught.** This is the literal
+   endpoint that vendor's paid bypass targets — the only difference is no bypass
+   was needed *this time, from this IP, in a short burst*. Robots.txt still says
+   `Disallow: /`. Pacing requests to avoid detection doesn't change that; it's
+   optimizing for not getting caught doing the thing Reddit has already said,
+   on the record, it doesn't want done. **Do not build request-pacing/scheduling
+   around this endpoint** — that effort belongs on the Serper/caching path
+   instead, which is actually licensed.
+
+Also worth flagging on that vendor post: its FAQ cites *hiQ v. LinkedIn* as
+blanket legal cover. That case was scraping public data with no active
+technical countermeasure in place; this is explicitly about defeating a
+reCAPTCHA and a deliberate soft-block. Not the same fact pattern — the
+citation is doing more work than it supports. Not legal advice, just: don't
+take a vendor's own reassurance about their own product at face value.
+
+### 3.9.6 Suggestions that come up and don't work — checked, not assumed
 
 - **RSS / subreddit feeds.** Real post timestamps, sub-hour freshness, free —
   genuinely better than Exa on the one signal that matters. But the rate limit
