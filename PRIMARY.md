@@ -320,6 +320,18 @@ control. Changing `DAILY_SCAN_LIMIT` or `MAX_ORG_MEMBERS` moves the cost line.
   OAuth endpoints in `reddit.ts`. Needs the same `client_id`/`client_secret`
   that §3.9 already establishes cannot be obtained. Solves nothing on its own,
   and this codebase isn't Python regardless.
+- **Third-party "Reddit API" wrappers (e.g. ScrapeCreators).** Response shape is
+  genuinely good — `votes`, `num_comments`, `created_at` all present, better
+  than Exa on every field. Rejected anyway: its own marketing calls it *"an
+  unofficial Reddit API"*, and its ToS says *"we are not affiliated with any
+  third-party platforms… endpoints may stop working at any time… we are not
+  responsible for lost business."* That is a scraper with a clean interface,
+  not a licensed source. Paying a vendor to scrape Reddit doesn't move
+  RedIntelli outside the Responsible Builder Policy's *"no unapproved
+  commercialization… mining, scraping"* clause — it adds a middleman who has
+  already disclaimed, in writing, that it expects to break. Different risk
+  profile than Serper/Exa: those are customers of a licensed search index one
+  step removed from Reddit; this is Reddit-scraping-as-a-service.
 - **Pushshift.io.** Now run by NCRI, and its own signup terms require
   certifying you are a registered Reddit moderator using it for community
   moderation, and explicitly forbid commercializing the data in any manner.
