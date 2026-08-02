@@ -41,6 +41,9 @@ export default defineNuxtConfig({
     redditClientId: process.env.REDDIT_CLIENT_ID || '',
     redditClientSecret: process.env.REDDIT_CLIENT_SECRET || '',
     redditUserAgent: process.env.REDDIT_USER_AGENT || 'redintelli/0.1 (lead discovery)',
+    // Exa key. The only discovery route that works from Vercel — Reddit's own
+    // endpoints 403 and OpenCLI needs a local Chrome. See PRIMARY.md §3.9.
+    searchApiKey: process.env.SEARCH_API_KEY || '',
     public: {
       localMode,
       // Public because the UI states both limits before anyone hits one.

@@ -168,7 +168,15 @@ export function scoreLead(post: RedditPost, phrase: string, brand?: Pick<Brand, 
   // --- engagement ----------------------------------------------------------
   // Few comments means the question is probably still open; a big pile means
   // anything you write lands at the bottom.
-  if (post.numComments <= 5) {
+  //
+  // Both are skipped when the source doesn't report them rather than treated as
+  // zero. A search-index result has no thread stats, and `0 <= 5` would award
+  // every single lead "few replies so far" — the signal would fire universally
+  // and stop meaning anything. Silence is the honest answer; the trailing
+  // signal says so, because the inbox promises every point is explainable.
+  if (post.numComments === null) {
+    signals.push('reply count unavailable')
+  } else if (post.numComments <= 5) {
     score += 8
     signals.push('few replies so far')
   } else if (post.numComments > 60) {
@@ -176,7 +184,7 @@ export function scoreLead(post: RedditPost, phrase: string, brand?: Pick<Brand, 
     signals.push('crowded thread')
   }
 
-  if (post.ups >= 20) {
+  if (post.ups !== null && post.ups >= 20) {
     score += 4
     signals.push('has traction')
   }

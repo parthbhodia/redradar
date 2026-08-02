@@ -36,6 +36,7 @@ export default defineEventHandler(async (event) => {
     clientId: config.redditClientId,
     clientSecret: config.redditClientSecret,
     userAgent: config.redditUserAgent,
+    searchApiKey: config.searchApiKey,
   })
 
   const results = []

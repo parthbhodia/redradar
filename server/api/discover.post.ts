@@ -41,6 +41,7 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse> => {
     clientId: config.redditClientId,
     clientSecret: config.redditClientSecret,
     userAgent: config.redditUserAgent,
+    searchApiKey: config.searchApiKey,
   })
 
   const limit = Math.min(Math.max(body.limit ?? 25, 1), 100)

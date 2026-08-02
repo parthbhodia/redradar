@@ -1,5 +1,6 @@
 import type { RedditPost } from '#shared/types'
 import { createOpenCliAdapter } from './opencli-reddit'
+import { createSearchIndexAdapter } from './search-index'
 
 export interface RedditSearchOptions {
   query: string
@@ -15,7 +16,7 @@ export interface RedditSearchOptions {
  * for the official API or a SERP provider without touching discovery/scoring.
  */
 export interface RedditAdapter {
-  readonly mode: 'oauth' | 'public'
+  readonly mode: 'oauth' | 'public' | 'search'
   search(options: RedditSearchOptions): Promise<RedditPost[]>
 }
 
@@ -23,6 +24,8 @@ export interface RedditCredentials {
   clientId?: string
   clientSecret?: string
   userAgent: string
+  /** Exa key. Enables the search-index route — see `search-index.ts`. */
+  searchApiKey?: string
 }
 
 interface RawListing {
@@ -54,8 +57,10 @@ function normalize(raw: RawPost | undefined): RedditPost | null {
     author: raw.author ?? '',
     url: `https://www.reddit.com${raw.permalink}`,
     createdAt: new Date((raw.created_utc ?? 0) * 1000).toISOString(),
-    numComments: raw.num_comments ?? 0,
-    ups: raw.ups ?? 0,
+    // Reddit always sends these; `null` rather than `0` on the off chance it
+    // doesn't, so a missing field reads as unknown instead of "no replies".
+    numComments: raw.num_comments ?? null,
+    ups: raw.ups ?? null,
     over18: raw.over_18 ?? false,
   }
 }
@@ -150,6 +155,15 @@ function createOAuthAdapter(creds: Required<Pick<RedditCredentials, 'clientId' |
   }
 }
 
+/**
+ * Picks a data source, best first.
+ *
+ * The landscape as of 2026-08: OAuth credentials can no longer be issued, and
+ * the public JSON endpoints return 403 to every user agent. OpenCLI works but
+ * drives a real Chrome, so it exists only on a developer's machine — never on
+ * Vercel. That left production with no working source at all, which is why the
+ * search index sits above the legacy paths rather than below them.
+ */
 export function createRedditAdapter(creds: RedditCredentials): RedditAdapter {
   if (creds.clientId && creds.clientSecret) {
     return createOAuthAdapter({
@@ -159,26 +173,34 @@ export function createRedditAdapter(creds: RedditCredentials): RedditAdapter {
     })
   }
 
-  // Public JSON is often blocked from datacenters / bot filters. Prefer OpenCLI
-  // (Chrome bridge) when available, then fall back to public endpoints.
-  if (process.env.REDDIT_USE_OPENCLI !== '0') {
-    const opencli = createOpenCliAdapter()
-    const pub = createPublicAdapter(creds.userAgent)
-    return {
-      mode: 'oauth',
-      async search(options) {
-        try {
-          return await opencli.search(options)
-        } catch (opencliError) {
-          try {
-            return await pub.search(options)
-          } catch {
-            throw opencliError
-          }
-        }
-      },
-    }
-  }
+  const searchIndex = creds.searchApiKey
+    ? createSearchIndexAdapter(creds.searchApiKey)
+    : null
 
-  return createPublicAdapter(creds.userAgent)
+  // OpenCLI still wins where it exists: it sees reply counts and upvotes, which
+  // the index cannot, and those drive two of the scorer's signals.
+  const opencli = process.env.REDDIT_USE_OPENCLI !== '0' ? createOpenCliAdapter() : null
+  const pub = createPublicAdapter(creds.userAgent)
+
+  const chain = [opencli, searchIndex, pub].filter((a): a is RedditAdapter => a !== null)
+
+  return {
+    mode: searchIndex && !opencli ? 'search' : 'oauth',
+    async search(options) {
+      let firstError: unknown
+      for (const adapter of chain) {
+        try {
+          const posts = await adapter.search(options)
+          // An empty result from a working adapter is a real answer, but from
+          // OpenCLI on a machine with no Chrome it's indistinguishable from a
+          // silent failure — so keep going when nothing came back.
+          if (posts.length) return posts
+        } catch (error) {
+          firstError ??= error
+        }
+      }
+      if (firstError) throw firstError
+      return []
+    },
+  }
 }

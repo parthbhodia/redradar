@@ -67,8 +67,14 @@ export interface RedditPost {
   author: string
   url: string
   createdAt: string
-  numComments: number
-  ups: number
+  /**
+   * Null when the source can't report it. A search index returns titles and
+   * dates but no thread stats, and defaulting those to 0 would hand every
+   * result the scorer's "few replies" bonus — inflating every score and
+   * turning the signal into noise. Null means unknown, not zero.
+   */
+  numComments: number | null
+  ups: number | null
   over18: boolean
 }
 

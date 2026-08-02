@@ -217,14 +217,33 @@ Commercialization… extends to commercial and non-commercial mining, scraping, 
 using data for purposes like ads targeting."* A third-party scraper (Apify,
 Bright Data) routes around the IP block but not around that sentence.
 
-**The one route that isn't scraping Reddit:** query a licensed web-search index
-instead — Exa, Brave Search, Serper, Google CSE — restricted to `reddit.com`.
-You are then a consumer of a search engine, not of Reddit data. Verified working:
-an Exa query for `linktree alternative` returned exactly the thread shape
-discovery targets (r/InstagramMarketing, r/socialmedia, r/CreatorsAdvice), with
-titles, URLs and dates. What it does *not* return is `num_comments`, `score` or
-`selftext`, which `server/utils/scoring.ts` uses — so the scorer would need
-reworking around what a search index can actually see.
+**The fix, shipped:** `server/utils/search-index.ts` queries a licensed
+web-search index (Exa) restricted to `reddit.com`. We are then a consumer of a
+search engine, not of Reddit data — no approval to obtain, no block to route
+around, and it runs on Vercel. **Set `SEARCH_API_KEY` or deployed scans find
+nothing.**
+
+`createRedditAdapter` now tries each source in turn and takes the first that
+returns rows: OpenCLI → search index → public JSON. OpenCLI stays first where it
+exists because it sees reply counts and upvotes, which an index cannot. An empty
+result falls through rather than counting as success — on a machine with no
+Chrome, OpenCLI returning nothing is indistinguishable from it failing.
+
+### 3.9.1 Unknown engagement is null, never zero
+
+An index knows a thread's title, URL and date. It does not know `num_comments`
+or `ups`, so `RedditPost` types both as `number | null`.
+
+This matters more than it looks. `scoreLead` had `if (post.numComments <= 5)
+score += 8` — defaulting a missing count to `0` would award **every single
+lead** the "few replies so far" bonus, inflating every score and reducing the
+signal to noise. It reads as working; it just quietly stops discriminating.
+
+Both engagement signals are now skipped when the value is null, and a
+`reply count unavailable` signal is emitted instead, because the inbox promises
+every point is explainable. Measured on an identical thread: 55 with few
+replies, 39 when crowded, **47 when unknown** — exactly midway, claiming
+nothing. Covered by tests in the commit that introduced it.
 
 ### 3.10 Local mode is a different product
 
