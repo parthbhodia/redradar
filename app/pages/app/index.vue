@@ -108,7 +108,12 @@
             <button class="btn-primary" :disabled="busy">
               {{ activeBrand ? 'Save brand' : 'Create brand' }}
             </button>
+            <span v-if="brandSaved" class="ml-3 text-sm text-ok">Saved.</span>
           </div>
+
+          <p v-if="brandError" class="sm:col-span-2 rounded-lg border border-signal/30 bg-signal/10 px-3 py-2 text-sm text-signal-soft">
+            {{ brandError }}
+          </p>
         </form>
       </section>
 
@@ -154,6 +159,10 @@
         </div>
         <p class="mb-4 text-sm text-mute">
           What people type when they're looking for what you sell.
+        </p>
+
+        <p v-if="keywordSuggestError" class="mb-4 rounded-lg border border-signal/30 bg-signal/10 px-3 py-2 text-sm text-signal-soft">
+          {{ keywordSuggestError }}
         </p>
 
         <!-- Rate limiting info -->
@@ -401,6 +410,9 @@ export default {
       busy: false,
       scanning: false,
       error: '',
+      brandError: '',
+      brandSaved: false,
+      keywordSuggestError: '',
       orgName: '',
       newCampaignName: '',
       newKeyword: { phrase: '', subreddit: '' },
@@ -471,6 +483,8 @@ export default {
       immediate: true,
       handler(id) {
         this.scanResult = null
+        this.keywordSuggestError = ''
+        this.keywordIdeas = []
         if (id) this.loadKeywords()
         else this.keywords = []
       },
@@ -598,8 +612,16 @@ export default {
       }
     },
 
-    saveBrand() {
-      return this.run(async () => {
+    async saveBrand() {
+      this.busy = true
+      this.brandError = ''
+      this.brandSaved = false
+
+      try {
+        if (!this.brandForm.name?.trim()) {
+          throw new Error('Brand name is required.')
+        }
+
         const competitors = this.brandForm.competitors
           .split(',')
           .map(s => s.trim())
@@ -621,6 +643,8 @@ export default {
             },
           })
           await this.load(true)
+          this.brandSaved = true
+          setTimeout(() => { this.brandSaved = false }, 3000)
           return
         }
 
@@ -634,14 +658,26 @@ export default {
         }
 
         const query = this.activeBrand
-          ? this.supabase.from('brands').update(payload).eq('id', this.activeBrand.id)
-          : this.supabase.from('brands').insert(payload)
+          ? this.supabase.from('brands').update(payload).eq('id', this.activeBrand.id).select()
+          : this.supabase.from('brands').insert(payload).select()
 
-        const { error } = await query
+        const { data, error } = await query
         if (error) throw new Error(error.message)
 
+        // An update matching zero rows (e.g. RLS silently blocking it) returns
+        // no error and an empty array — that reads as success but wrote nothing.
+        if (this.activeBrand && (!data || data.length === 0)) {
+          throw new Error('Save didn\'t apply — you may not have permission to edit this brand.')
+        }
+
         await this.load(true)
-      })
+        this.brandSaved = true
+        setTimeout(() => { this.brandSaved = false }, 3000)
+      } catch (e) {
+        this.brandError = e.data?.statusMessage || e.message
+      } finally {
+        this.busy = false
+      }
     },
 
     addCampaign() {
@@ -697,12 +733,12 @@ export default {
     async suggestKeywordIdeas() {
       // Validate brand is set up first
       if (!this.activeBrand?.name) {
-        this.error = 'Fill in the brand name first, then try again.'
+        this.keywordSuggestError = 'Fill in the brand name first, then try again.'
         return
       }
 
       this.suggestingKeywords = true
-      this.error = ''
+      this.keywordSuggestError = ''
       this.keywordIdeas = []
 
       try {
@@ -712,10 +748,10 @@ export default {
         })
         this.keywordIdeas = result.keywords ?? []
         if (!this.keywordIdeas.length) {
-          this.error = 'No keywords suggested. Try filling in more brand details (description, competitors).'
+          this.keywordSuggestError = 'No keywords suggested. Try filling in more brand details (description, competitors).'
         }
       } catch (e) {
-        this.error = e.data?.statusMessage || e.message
+        this.keywordSuggestError = e.data?.statusMessage || e.message
       } finally {
         this.suggestingKeywords = false
       }
