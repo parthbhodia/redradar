@@ -174,19 +174,49 @@ The Chrome-bridge Reddit adapter shells out to `opencli`, whose shebang is
 Node.js >= 20.0.0"*. Fixed by prepending `dirname(process.execPath)` to the
 child's PATH.
 
-### 3.9 Local mode is a different product
+### 3.9 Reddit API credentials are not obtainable — and the fallback is grey-area
+
+**Do not spend time on `reddit.com/prefs/apps`.** Self-serve app creation is
+dead. The form still renders, accepts input and a captcha, then silently fails
+and re-shows a link to the Responsible Builder Policy. It is not a captcha,
+account-age, email-verification or adblock problem — it does this for everyone.
+Confirmed against Reddit's own policy page and multiple 2026 r/redditdev reports
+([silent failure](https://www.reddit.com/r/redditdev/comments/1qf7707/create_app_button_does_nothing_silent_failure_new/)).
+
+Reddit's [Responsible Builder Policy](https://support.reddithelp.com/hc/en-us/articles/42728983564564-Responsible-Builder-Policy):
+*"Approval is required: You must request access and get explicit approval before
+accessing any Reddit data through our API."* Non-commercial work is pushed to
+Devvit; commercial use needs explicit written approval "if your proposal fits
+our criteria".
+
+Reported outcomes for applicants are poor: detailed read-only, no-automation
+requests [rejected as non-compliant](https://www.reddit.com/r/redditdev/comments/1r2ukkb/anyone_else_struggling_to_get_reddit_data_api/),
+and others [never answered at all](https://www.reddit.com/r/redditdev/comments/1rebk4v/is_anyone_actually_getting_replies_for_new_reddit/).
+
+So `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` are **not currently obtainable**,
+and the OAuth branch in `server/utils/reddit.ts` is effectively dead code kept
+for the day that changes.
+
+**The risk this creates.** Discovery runs on public Reddit JSON and the OpenCLI
+browser bridge. The policy's approval requirement covers Reddit data broadly,
+not just the OAuth endpoints, so the path the product actually depends on is
+unsanctioned rather than merely unauthenticated. It works today. It is not
+guaranteed to, and commercial lead-generation is the exact use case the policy
+targets. Treat data sourcing as a live product risk, not a solved problem.
+
+### 3.10 Local mode is a different product
 
 `REDRADAR_LOCAL=1` runs on SQLite with no Supabase. **No teams, no invites, no
 seat limit, no scan quota, no toasts driven by quota.** `/api/quota` returns
 `null` and the badge hides. Anything touching `org_members` throws a 400 in
 local mode by design.
 
-### 3.10 Rescans preserve CRM state
+### 3.11 Rescans preserve CRM state
 
 `/api/discover` refreshes `score`, `signals`, and thread text on threads it has
 seen, but never touches `status` or `reply_draft`.
 
-### 3.11 Scoring is a heuristic, not a model
+### 3.12 Scoring is a heuristic, not a model
 
 Every point moved is attached to a signal string stored on the lead and shown in
 the inbox, so a bad score is debuggable without re-running the scan. Known past
@@ -199,7 +229,7 @@ scored the same as a 29-day one and could top the inbox. It now decays: −8 ove
 a week, −15 over two, −25 over a month. **Leads scored before 2026-07-31 still
 carry the old flat curve** and will read high until a rescan re-scores them.
 
-### 3.12 Draft tone lives in the database, not the prompt
+### 3.13 Draft tone lives in the database, not the prompt
 
 `server/utils/llm.ts` has no template fallback. A missing key, a retired model
 ID or an API error throws, because a canned draft posing as AI output is how
@@ -262,7 +292,7 @@ gitignored except `.env.example`.
 | `MAX_ORG_MEMBERS` | seats per workspace, default 3. App layer only — the DB trigger needs its own setting, see §2 |
 | `DAILY_SCAN_LIMIT` | manual scans per user per day, default 3 |
 | `CRON_SECRET` | `x-cron-secret` for `/api/cron/scan-all`; empty disables the endpoint |
-| `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | optional; falls back to OpenCLI then public JSON |
+| `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | **not obtainable — see §3.9.** Falls back to OpenCLI then public JSON |
 | `REDRADAR_LOCAL` | `1` for SQLite mode |
 
 Internal env var names and table names still say `redradar`. **This is
