@@ -197,12 +197,34 @@ So `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` are **not currently obtainable**,
 and the OAuth branch in `server/utils/reddit.ts` is effectively dead code kept
 for the day that changes.
 
-**The risk this creates.** Discovery runs on public Reddit JSON and the OpenCLI
-browser bridge. The policy's approval requirement covers Reddit data broadly,
-not just the OAuth endpoints, so the path the product actually depends on is
-unsanctioned rather than merely unauthenticated. It works today. It is not
-guaranteed to, and commercial lead-generation is the exact use case the policy
-targets. Treat data sourcing as a live product risk, not a solved problem.
+**Worse: the fallback chain is already broken.** Measured 2026-08-02, not
+predicted:
+
+| Path | Status |
+| --- | --- |
+| OAuth (`oauth.reddit.com`) | dead — credentials unobtainable, see above |
+| Public JSON (`/search.json`) | **403**, both the app's UA and a real browser UA. Returns a 190 KB HTML block page, not JSON |
+| RSS (`/search.rss`) | 200 once, then **429 for minutes** — paced at 1 req/12s from a residential IP the 2nd, 3rd and 4th all 429'd. Entries carry only `title, link, id, updated, author, content`: no `num_comments`, `score` or `ups` |
+| OpenCLI Chrome bridge | works, but needs a logged-in Chrome on the machine |
+
+`createRedditAdapter` falls OpenCLI → public JSON. On Vercel there is no Chrome
+and no OpenCLI, so production discovery falls straight through to a 403. **Scans
+work locally and are expected to fail in production.** Local scans are what
+produced every lead in the database.
+
+The policy also forecloses the obvious workarounds: *"No Unapproved
+Commercialization… extends to commercial and non-commercial mining, scraping, or
+using data for purposes like ads targeting."* A third-party scraper (Apify,
+Bright Data) routes around the IP block but not around that sentence.
+
+**The one route that isn't scraping Reddit:** query a licensed web-search index
+instead — Exa, Brave Search, Serper, Google CSE — restricted to `reddit.com`.
+You are then a consumer of a search engine, not of Reddit data. Verified working:
+an Exa query for `linktree alternative` returned exactly the thread shape
+discovery targets (r/InstagramMarketing, r/socialmedia, r/CreatorsAdvice), with
+titles, URLs and dates. What it does *not* return is `num_comments`, `score` or
+`selftext`, which `server/utils/scoring.ts` uses — so the scorer would need
+reworking around what a search index can actually see.
 
 ### 3.10 Local mode is a different product
 
