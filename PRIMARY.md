@@ -306,6 +306,26 @@ pay the premium expecting it to.
 linearly, and the daily scan cap is now a margin control as much as an abuse
 control. Changing `DAILY_SCAN_LIMIT` or `MAX_ORG_MEMBERS` moves the cost line.
 
+### 3.9.4 Suggestions that come up and don't work — checked, not assumed
+
+- **RSS / subreddit feeds.** Real post timestamps, sub-hour freshness, free —
+  genuinely better than Exa on the one signal that matters. But the rate limit
+  is **global per-IP across all of reddit.com**, not per-feed: ~1 request/30s,
+  measured. That is a fixed ceiling independent of revenue, unlike a paid
+  search API where scaling is a cost problem you can solve. Also doesn't fit a
+  serverless function's timeout if polling more than one or two subreddits per
+  invocation. Usable only as a free supplement — one shared poll per
+  subreddit, fanned out to every workspace tracking it — never as the backbone.
+- **PRAW.** Not an independent source — a Python wrapper over the identical
+  OAuth endpoints in `reddit.ts`. Needs the same `client_id`/`client_secret`
+  that §3.9 already establishes cannot be obtained. Solves nothing on its own,
+  and this codebase isn't Python regardless.
+- **Pushshift.io.** Now run by NCRI, and its own signup terms require
+  certifying you are a registered Reddit moderator using it for community
+  moderation, and explicitly forbid commercializing the data in any manner.
+  Two independent disqualifiers for a commercial lead-gen product — not a
+  workaround, a dead end. Signing up would mean certifying something untrue.
+
 ### 3.10 Local mode is a different product
 
 `REDRADAR_LOCAL=1` runs on SQLite with no Supabase. **No teams, no invites, no
