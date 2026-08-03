@@ -1,5 +1,6 @@
 import { collectCandidates, upsertCandidates } from '../../utils/discovery'
 import { createRedditAdapter } from '../../utils/reddit'
+import { createSupabaseOAuthStore } from '../../utils/reddit-oauth-store'
 import { failScanRun, finishScanRun, startScanRun } from '../../utils/scan-runs'
 
 /**
@@ -32,12 +33,15 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, statusMessage: error.message })
   }
 
+  // Same reasoning as discover.post.ts: without this, the OAuth token and
+  // rate-limit tracking reset every cron invocation instead of surviving
+  // across them (and across whatever manual scans ran in between).
   const reddit = createRedditAdapter({
     clientId: config.redditClientId,
     clientSecret: config.redditClientSecret,
     userAgent: config.redditUserAgent,
     searchApiKey: config.searchApiKey,
-  })
+  }, createSupabaseOAuthStore(admin))
 
   const results = []
 
