@@ -761,7 +761,7 @@ intentional** — the rename to RedIntelli was user-visible strings only.
 
 | Commit | Change |
 | --- | --- |
-| _(pending)_ | Adaptive OAuth pacing off Reddit's `X-Ratelimit-*` response headers, on top of the fixed 1s baseline (§3.9) |
+| `6991433` | Adaptive OAuth pacing off Reddit's `X-Ratelimit-*` response headers, on top of the fixed 1s baseline (§3.9) |
 | `45622ee` | "New activity since you replied" tracking (§3.15) — migration 0008 applied to prod 2026-08-03 |
 | `f4472d1` | Per-campaign DB-backed scan lock + cooldown confirmation (§3.14) |
 | `ecdd3b5` | Scan history rows expand to per-keyword analytics on Dashboard |
