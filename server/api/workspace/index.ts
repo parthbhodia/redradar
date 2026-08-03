@@ -112,7 +112,15 @@ export default defineEventHandler(async (event) => {
         if (!body.leadId || !body.patch) {
           throw createError({ statusCode: 400, statusMessage: 'leadId and patch required.' })
         }
-        const lead = updateLead(body.leadId, body.patch as any)
+        const patch = body.patch as any
+        // When status changes to 'queued', claim the lead for this user.
+        // When it changes to 'new', release it (revert claimed_by to null).
+        if (patch.status === 'queued') {
+          patch.claimed_by = user.id
+        } else if (patch.status === 'new') {
+          patch.claimed_by = null
+        }
+        const lead = updateLead(body.leadId, patch)
         return { lead }
       }
       default:

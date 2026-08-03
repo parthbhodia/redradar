@@ -14,7 +14,15 @@
       <div class="flex shrink-0 items-center gap-2">
         <!-- Claim state. The whole point is that two people never work the same
              thread without seeing each other. -->
-        <template v-if="!localMode">
+        <template v-if="localMode && claimed">
+          <template v-if="claimedByMe">
+            <span class="chip border-signal/40 text-signal">Yours</span>
+          </template>
+          <span v-else class="chip border-warn/40 text-warn">
+            {{ claimed }}
+          </span>
+        </template>
+        <template v-else-if="!localMode">
           <button v-if="!assigned" class="btn-quiet" :disabled="busy" @click="claim">Claim</button>
           <template v-else-if="claimedByMe">
             <span class="chip border-signal/40 text-signal">Yours</span>
@@ -215,11 +223,23 @@ export default {
       return this.lead.assigned ?? null
     },
 
+    claimed() {
+      // Local mode: show the claimed_by field directly (usually a user ID).
+      // For display, we could show "You" if it's the current user, or just the ID.
+      return this.lead.claimed_by ?? null
+    },
+
     claimedByMe() {
+      if (this.localMode) {
+        return this.lead.claimed_by === this.myId
+      }
       return Boolean(this.assigned && this.assigned.id === this.myId)
     },
 
     locked() {
+      if (this.localMode) {
+        return Boolean(this.lead.claimed_by && !this.claimedByMe)
+      }
       return Boolean(this.assigned && !this.claimedByMe)
     },
 
@@ -366,11 +386,18 @@ export default {
       if (status === this.lead.status) return
 
       if (this.localMode) {
-        await $fetch('/api/workspace', {
-          method: 'POST',
-          body: { action: 'update_lead', leadId: this.lead.id, patch: { status } },
-        })
-        this.$emit('update', { id: this.lead.id, patch: { status } })
+        this.busy = true
+        try {
+          const { lead } = await $fetch('/api/workspace', {
+            method: 'POST',
+            body: { action: 'update_lead', leadId: this.lead.id, patch: { status } },
+          })
+          this.$emit('update', { id: this.lead.id, patch: lead })
+        } catch (e) {
+          this.draftError = e.data?.statusMessage || e.message
+        } finally {
+          this.busy = false
+        }
         return
       }
 
