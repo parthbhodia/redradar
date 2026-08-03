@@ -112,10 +112,30 @@ function createPublicAdapter(userAgent: string): RedditAdapter {
   }
 }
 
+/**
+ * Below this many requests left in the current window, stop trusting the
+ * fixed 1s pacing in reddit-rate-limit.ts and wait out Reddit's own reset
+ * window instead. 5 is a buffer, not the wire — Reddit's OAuth limit is
+ * ~60/min/app, shared across every workspace scanning concurrently, so
+ * "remaining" can already be low from someone else's scan by the time this
+ * one's first request lands.
+ */
+const RATE_LIMIT_LOW_WATERMARK = 5
+const RATE_LIMIT_MAX_WAIT_MS = 60_000
+
 /** App-only OAuth (client_credentials). Higher, more predictable rate limits. */
 function createOAuthAdapter(creds: Required<Pick<RedditCredentials, 'clientId' | 'clientSecret'>> & { userAgent: string }): RedditAdapter {
   let token: string | null = null
   let expiresAt = 0
+
+  // Reddit reports these on every OAuth response (X-Ratelimit-*); shared
+  // module state, not per-call, so the *next* request in this scan reacts to
+  // what the *last* one actually saw rather than pacing blind. Module-level
+  // rather than per-adapter-instance for the same reason discover.post.ts
+  // treats OAuth credentials as a shared resource across every workspace —
+  // one process, one Reddit app, one real ceiling.
+  let rateLimitRemaining: number | null = null
+  let rateLimitResetSeconds: number | null = null
 
   async function accessToken() {
     if (token && Date.now() < expiresAt) return token
@@ -141,10 +161,25 @@ function createOAuthAdapter(creds: Required<Pick<RedditCredentials, 'clientId' |
     return token
   }
 
+  /**
+   * Waits out Reddit's own reset window when the last response said we're
+   * close to the ceiling. A no-op the vast majority of the time — this only
+   * fires when the fixed pacing in reddit-rate-limit.ts wasn't conservative
+   * enough for what Reddit is actually reporting right now.
+   */
+  async function waitForRateLimitHeadroom() {
+    if (rateLimitRemaining === null || rateLimitRemaining > RATE_LIMIT_LOW_WATERMARK) return
+    const waitMs = Math.min(RATE_LIMIT_MAX_WAIT_MS, (rateLimitResetSeconds ?? 10) * 1000)
+    console.warn(`[reddit] ${rateLimitRemaining} requests left, waiting ${Math.round(waitMs / 1000)}s for Reddit's own reset`)
+    await new Promise(resolve => setTimeout(resolve, waitMs))
+  }
+
   return {
     mode: 'oauth',
     async search(options) {
-      const payload = await $fetch(`https://oauth.reddit.com${searchPath(options)}`, {
+      await waitForRateLimitHeadroom()
+
+      const response = await $fetch.raw(`https://oauth.reddit.com${searchPath(options)}`, {
         headers: {
           Authorization: `Bearer ${await accessToken()}`,
           'User-Agent': creds.userAgent,
@@ -152,7 +187,15 @@ function createOAuthAdapter(creds: Required<Pick<RedditCredentials, 'clientId' |
         retry: 1,
         timeout: 15_000,
       })
-      return parseListing(payload)
+
+      // Absent on some responses (e.g. auth errors) — leave the prior reading
+      // in place rather than resetting to "unknown" on a fluke.
+      const remaining = response.headers.get('x-ratelimit-remaining')
+      const reset = response.headers.get('x-ratelimit-reset')
+      if (remaining !== null) rateLimitRemaining = Math.floor(Number(remaining))
+      if (reset !== null) rateLimitResetSeconds = Number(reset)
+
+      return parseListing(response._data)
     },
   }
 }

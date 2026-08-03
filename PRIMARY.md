@@ -196,10 +196,18 @@ What's protecting these credentials now that they're load-bearing in
 production, not just local: 1 second pacing between keyword searches, exact
 phrase-quoted queries (Reddit treats an unquoted multi-word query as
 OR-of-terms — see the discovery-relevance work below), a hard cap of 25
-results per keyword, 10 keywords per campaign, and a DB-backed per-campaign
-scan lock (§3.14) on top of the existing daily-scan quota (§2). None of that
-existed when this section was written against the assumption that OAuth would
-never come back.
+results per keyword, 10 keywords per campaign, a DB-backed per-campaign
+scan lock (§3.14) on top of the existing daily-scan quota (§2), and — added
+2026-08-03, after PRAW's README pointed at the technique worth borrowing
+without adopting a Python dependency — **adaptive pacing off Reddit's own
+`X-Ratelimit-Remaining`/`X-Ratelimit-Reset` response headers**. The OAuth
+adapter in `reddit.ts` reads these on every response; below a 5-request buffer
+it waits out Reddit's actual reset window instead of trusting the fixed 1s
+pacing alone. Belt and suspenders: the fixed pacing stays as the baseline, this
+only fires when Reddit itself says the baseline wasn't conservative enough
+(e.g. because another workspace's scan already spent most of the shared app's
+window). None of this existed when this section was written against the
+assumption that OAuth would never come back.
 
 **Everything below this point is preserved as historical/background context,
 not the active path.** It explains *why* the fallback chain (OpenCLI,
@@ -644,11 +652,8 @@ Applied in order, by hand in the Supabase SQL editor.
 | `0007_seat_limit_from_setting.sql` | same trigger, reading `app.max_org_members` instead. Supersedes 0006 — running only this one is fine |
 | `0008_lead_activity_tracking.sql` | `leads.num_comments`/`replied_num_comments` + snapshot trigger — see §3.15 |
 
-0001–0007 applied to production as of 2026-07-30. **0008's production status is
-unconfirmed** — instructions to apply it (SQL editor, no CLI installed locally
-as of 2026-08-03) were given but not verified back. Until it runs, §3.15's
-feature silently no-ops rather than erroring — check for `num_comments` on the
-`leads` table before assuming it landed.
+0001–0008 applied to production as of 2026-08-03 (0008 run by hand via the
+Supabase SQL editor — no local CLI, see §3.9's env note).
 
 > ⚠️ **The Supabase MCP connected to this workspace points at a different
 > project** (its migrations are `profile_faqs`, `creator_growth_foundations`,
@@ -756,7 +761,8 @@ intentional** — the rename to RedIntelli was user-visible strings only.
 
 | Commit | Change |
 | --- | --- |
-| `45622ee` | "New activity since you replied" tracking (§3.15) — migration 0008, unconfirmed in prod |
+| _(pending)_ | Adaptive OAuth pacing off Reddit's `X-Ratelimit-*` response headers, on top of the fixed 1s baseline (§3.9) |
+| `45622ee` | "New activity since you replied" tracking (§3.15) — migration 0008 applied to prod 2026-08-03 |
 | `f4472d1` | Per-campaign DB-backed scan lock + cooldown confirmation (§3.14) |
 | `ecdd3b5` | Scan history rows expand to per-keyword analytics on Dashboard |
 | `82c6dc3` | Hard-capped scan results at 25/keyword, no override |
