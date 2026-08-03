@@ -54,6 +54,7 @@ export interface Lead {
   status: LeadStatus
   reply_draft: string | null
   posted_at: string | null
+  claimed_by: string | null
   discovered_at: string
   updated_at: string
   /** Refreshed on every scan. Null when the source has no engagement data. */

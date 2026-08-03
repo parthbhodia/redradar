@@ -83,6 +83,7 @@ function migrate(db: Database.Database) {
       status text not null default 'new',
       reply_draft text,
       posted_at text,
+      claimed_by text,
       discovered_at text not null,
       updated_at text not null,
       unique (campaign_id, platform, external_id)
@@ -161,6 +162,7 @@ function mapLead(row: Record<string, unknown>): Lead {
     status: row.status as LeadStatus,
     reply_draft: (row.reply_draft as string | null) ?? null,
     posted_at: (row.posted_at as string | null) ?? null,
+    claimed_by: (row.claimed_by as string | null) ?? null,
     discovered_at: String(row.discovered_at),
     updated_at: String(row.updated_at),
     // "New activity since you replied" is cloud-only (migration 0008), same
@@ -342,7 +344,7 @@ export function getLead(id: string): Lead | null {
   return row ? mapLead(row) : null
 }
 
-export function updateLead(id: string, patch: Partial<Pick<Lead, 'status' | 'reply_draft' | 'score' | 'signals' | 'title' | 'body' | 'matched_keyword'>>) {
+export function updateLead(id: string, patch: Partial<Pick<Lead, 'status' | 'reply_draft' | 'score' | 'signals' | 'title' | 'body' | 'matched_keyword' | 'claimed_by'>>) {
   const current = getLead(id)
   if (!current) return null
 
@@ -362,6 +364,7 @@ export function updateLead(id: string, patch: Partial<Pick<Lead, 'status' | 'rep
       title = @title,
       body = @body,
       matched_keyword = @matched_keyword,
+      claimed_by = @claimed_by,
       updated_at = @updated_at
     where id = @id
   `).run({
@@ -373,6 +376,7 @@ export function updateLead(id: string, patch: Partial<Pick<Lead, 'status' | 'rep
     title: next.title,
     body: next.body,
     matched_keyword: next.matched_keyword,
+    claimed_by: next.claimed_by,
     updated_at: next.updated_at,
   })
 
@@ -430,10 +434,10 @@ export function upsertLeads(
   const insert = db.prepare(`
     insert into leads (
       id, campaign_id, platform, external_id, url, title, body, subreddit, author,
-      score, signals, matched_keyword, status, reply_draft, posted_at, discovered_at, updated_at
+      score, signals, matched_keyword, status, reply_draft, posted_at, claimed_by, discovered_at, updated_at
     ) values (
       @id, @campaign_id, 'reddit', @external_id, @url, @title, @body, @subreddit, @author,
-      @score, @signals, @matched_keyword, 'new', null, @posted_at, @discovered_at, @updated_at
+      @score, @signals, @matched_keyword, 'new', null, @posted_at, null, @discovered_at, @updated_at
     )
   `)
 
