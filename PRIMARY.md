@@ -209,6 +209,28 @@ only fires when Reddit itself says the baseline wasn't conservative enough
 window). None of this existed when this section was written against the
 assumption that OAuth would never come back.
 
+**That last one didn't actually work until a follow-up fix, also 2026-08-03.**
+`createRedditAdapter()` is called fresh inside the request handler on *every*
+`/api/discover` and `cron/scan-all` call — there's no long-lived process
+holding the OAuth adapter's closure state between requests. So the token and
+rate-limit tracking above were being rebuilt from scratch on every single
+scan: a brand-new OAuth token fetched from Reddit even when the previous one
+had 50 minutes left on it, and the adaptive pacing could only ever see
+headers from within *this* scan's own keyword loop — never from a different
+scan, which was the entire stated point (protecting a rate limit shared
+across every workspace). Same failure shape as the in-memory scan queue in
+§3.14, caught the same way: someone noticed state that's supposed to be
+shared was living in memory that doesn't survive between requests.
+
+Fixed with `reddit_oauth_state` (migration `0009`, singleton row,
+service-role only) and `server/utils/reddit-oauth-store.ts`. Both
+`discover.post.ts` and `cron/scan-all.post.ts` now pass a store into
+`createRedditAdapter()`; the OAuth adapter reads it once per request before
+its first token/rate-limit check and writes back after every token fetch and
+every search response. Local mode passes no store (no service-role client to
+back it with) and just falls back to the original per-request behavior —
+harmless for a single, non-shared local developer.
+
 **Everything below this point is preserved as historical/background context,
 not the active path.** It explains *why* the fallback chain (OpenCLI,
 `shreddit-listing.ts`, Exa, RSS) exists in the codebase at all, and it becomes
@@ -651,9 +673,13 @@ Applied in order, by hand in the Supabase SQL editor.
 | `0006_seat_limit.sql` | seat-limit trigger, with `3` baked into the function |
 | `0007_seat_limit_from_setting.sql` | same trigger, reading `app.max_org_members` instead. Supersedes 0006 — running only this one is fine |
 | `0008_lead_activity_tracking.sql` | `leads.num_comments`/`replied_num_comments` + snapshot trigger — see §3.15 |
+| `0009_reddit_oauth_state.sql` | `reddit_oauth_state` singleton — persists the OAuth token + rate-limit reading across requests, see §3.9 |
 
 0001–0008 applied to production as of 2026-08-03 (0008 run by hand via the
-Supabase SQL editor — no local CLI, see §3.9's env note).
+Supabase SQL editor — no local CLI, see §3.9's env note). **0009's production
+status is unconfirmed** — same manual-apply situation as 0008. Until it runs,
+the adaptive rate-limit protection in §3.9 silently degrades to its pre-store
+behavior (still safe, just not shared across requests) rather than erroring.
 
 > ⚠️ **The Supabase MCP connected to this workspace points at a different
 > project** (its migrations are `profile_faqs`, `creator_growth_foundations`,
@@ -761,6 +787,7 @@ intentional** — the rename to RedIntelli was user-visible strings only.
 
 | Commit | Change |
 | --- | --- |
+| _(pending)_ | Persist OAuth token + rate-limit state in Postgres (migration 0009) — the adapter is rebuilt fresh every request, so the previous commit's adaptive pacing couldn't actually see state across scans until this (§3.9) |
 | `6991433` | Adaptive OAuth pacing off Reddit's `X-Ratelimit-*` response headers, on top of the fixed 1s baseline (§3.9) |
 | `45622ee` | "New activity since you replied" tracking (§3.15) — migration 0008 applied to prod 2026-08-03 |
 | `f4472d1` | Per-campaign DB-backed scan lock + cooldown confirmation (§3.14) |

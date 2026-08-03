@@ -4,6 +4,7 @@ import { requireCampaign } from '../utils/guard'
 import { isLocalMode, listKeywords, upsertLeads } from '../utils/local-db'
 import { createRedditAdapter } from '../utils/reddit'
 import { checkRedditRateLimitStatus } from '../utils/reddit-rate-limit'
+import { createSupabaseOAuthStore } from '../utils/reddit-oauth-store'
 import { getScanQuota, untilReset } from '../utils/scan-quota'
 import { completeScan, requestScanAccess, type ScanQueueStatus } from '../utils/scan-queue'
 import { checkCampaignScanState, failScanRun, finishScanRun, startScanRun } from '../utils/scan-runs'
@@ -84,12 +85,19 @@ export default defineEventHandler(async (event): Promise<DiscoverResponse & { qu
   }
 
   const config = useRuntimeConfig(event)
+  // Without this, createRedditAdapter's OAuth token and rate-limit tracking
+  // reset to nothing on every single scan request — it's created fresh here,
+  // not held in a long-lived process. The store makes both survive across
+  // requests (and across every workspace sharing this one Reddit app). No
+  // store in local mode: no service-role client to back it with, and a
+  // single local developer refetching a token every scan is harmless.
+  const oauthStore = admin ? createSupabaseOAuthStore(admin) : undefined
   const reddit = createRedditAdapter({
     clientId: config.redditClientId,
     clientSecret: config.redditClientSecret,
     userAgent: config.redditUserAgent,
     searchApiKey: config.searchApiKey,
-  })
+  }, oauthStore)
 
   // Hard cap at 25 regardless of what a direct call asks for — the UI never
   // sends `limit` itself, so this only matters against someone hitting the

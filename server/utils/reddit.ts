@@ -30,6 +30,29 @@ export interface RedditCredentials {
   searchApiKey?: string
 }
 
+/** OAuth token + last-seen rate-limit reading, as persisted across requests. */
+export interface OAuthState {
+  token: string | null
+  /** Epoch ms. */
+  expiresAt: number
+  rateLimitRemaining: number | null
+  /** Epoch ms — already resolved from Reddit's relative "seconds until reset" at write time, so a stale read is still meaningful. */
+  rateLimitResetAt: number | null
+}
+
+/**
+ * createRedditAdapter() is called fresh on every /api/discover and
+ * cron/scan-all request — there is no long-lived process to hold this state
+ * in memory across requests. A store makes it survive anyway. Optional: with
+ * no store (local mode, where discover.post.ts has no service-role client),
+ * the adapter just refetches every time, same as before this existed — fine
+ * for a single, non-shared local developer.
+ */
+export interface OAuthStateStore {
+  read(): Promise<OAuthState | null>
+  write(state: OAuthState): Promise<void>
+}
+
 interface RawListing {
   data?: {
     children?: Array<{ data?: RawPost }>
@@ -124,20 +147,39 @@ const RATE_LIMIT_LOW_WATERMARK = 5
 const RATE_LIMIT_MAX_WAIT_MS = 60_000
 
 /** App-only OAuth (client_credentials). Higher, more predictable rate limits. */
-function createOAuthAdapter(creds: Required<Pick<RedditCredentials, 'clientId' | 'clientSecret'>> & { userAgent: string }): RedditAdapter {
+function createOAuthAdapter(
+  creds: Required<Pick<RedditCredentials, 'clientId' | 'clientSecret'>> & { userAgent: string },
+  store?: OAuthStateStore,
+): RedditAdapter {
   let token: string | null = null
   let expiresAt = 0
-
-  // Reddit reports these on every OAuth response (X-Ratelimit-*); shared
-  // module state, not per-call, so the *next* request in this scan reacts to
-  // what the *last* one actually saw rather than pacing blind. Module-level
-  // rather than per-adapter-instance for the same reason discover.post.ts
-  // treats OAuth credentials as a shared resource across every workspace —
-  // one process, one Reddit app, one real ceiling.
   let rateLimitRemaining: number | null = null
-  let rateLimitResetSeconds: number | null = null
+  let rateLimitResetAt: number | null = null
+  let stateLoaded = false
+
+  // Runs once per adapter instance (i.e. once per request), before the first
+  // token check or rate-limit check. With no store this is a no-op — the
+  // adapter behaves exactly as it did before the store existed.
+  async function ensureStateLoaded() {
+    if (stateLoaded) return
+    stateLoaded = true
+    if (!store) return
+
+    const cached = await store.read()
+    if (!cached) return
+    token = cached.token
+    expiresAt = cached.expiresAt
+    rateLimitRemaining = cached.rateLimitRemaining
+    rateLimitResetAt = cached.rateLimitResetAt
+  }
+
+  async function persistState() {
+    if (!store) return
+    await store.write({ token, expiresAt, rateLimitRemaining, rateLimitResetAt })
+  }
 
   async function accessToken() {
+    await ensureStateLoaded()
     if (token && Date.now() < expiresAt) return token
 
     const basic = Buffer.from(`${creds.clientId}:${creds.clientSecret}`).toString('base64')
@@ -158,6 +200,7 @@ function createOAuthAdapter(creds: Required<Pick<RedditCredentials, 'clientId' |
     token = res.access_token
     // Refresh a minute early so an in-flight scan never trips over expiry.
     expiresAt = Date.now() + (res.expires_in - 60) * 1000
+    await persistState()
     return token
   }
 
@@ -165,11 +208,14 @@ function createOAuthAdapter(creds: Required<Pick<RedditCredentials, 'clientId' |
    * Waits out Reddit's own reset window when the last response said we're
    * close to the ceiling. A no-op the vast majority of the time — this only
    * fires when the fixed pacing in reddit-rate-limit.ts wasn't conservative
-   * enough for what Reddit is actually reporting right now.
+   * enough for what Reddit is actually reporting right now. With a store,
+   * "the last response" may be from a different workspace's scan entirely —
+   * that's the point.
    */
   async function waitForRateLimitHeadroom() {
+    await ensureStateLoaded()
     if (rateLimitRemaining === null || rateLimitRemaining > RATE_LIMIT_LOW_WATERMARK) return
-    const waitMs = Math.min(RATE_LIMIT_MAX_WAIT_MS, (rateLimitResetSeconds ?? 10) * 1000)
+    const waitMs = Math.min(RATE_LIMIT_MAX_WAIT_MS, Math.max(0, (rateLimitResetAt ?? Date.now() + 10_000) - Date.now()))
     console.warn(`[reddit] ${rateLimitRemaining} requests left, waiting ${Math.round(waitMs / 1000)}s for Reddit's own reset`)
     await new Promise(resolve => setTimeout(resolve, waitMs))
   }
@@ -193,7 +239,10 @@ function createOAuthAdapter(creds: Required<Pick<RedditCredentials, 'clientId' |
       const remaining = response.headers.get('x-ratelimit-remaining')
       const reset = response.headers.get('x-ratelimit-reset')
       if (remaining !== null) rateLimitRemaining = Math.floor(Number(remaining))
-      if (reset !== null) rateLimitResetSeconds = Number(reset)
+      // Reddit reports reset as seconds-from-now, which stops meaning anything
+      // the moment it's stored — resolve to an absolute time immediately.
+      if (reset !== null) rateLimitResetAt = Date.now() + Number(reset) * 1000
+      await persistState()
 
       return parseListing(response._data)
     },
@@ -212,13 +261,13 @@ function createOAuthAdapter(creds: Required<Pick<RedditCredentials, 'clientId' |
  * API — see PRIMARY.md 3.9.5 and 3.9.7. The search index costs money and is
  * used only if a key is configured.
  */
-export function createRedditAdapter(creds: RedditCredentials): RedditAdapter {
+export function createRedditAdapter(creds: RedditCredentials, oauthStore?: OAuthStateStore): RedditAdapter {
   if (creds.clientId && creds.clientSecret) {
     return createOAuthAdapter({
       clientId: creds.clientId,
       clientSecret: creds.clientSecret,
       userAgent: creds.userAgent,
-    })
+    }, oauthStore)
   }
 
   const searchIndex = creds.searchApiKey
