@@ -827,7 +827,7 @@ intentional** — the rename to RedIntelli was user-visible strings only.
 
 | Commit | Change |
 | --- | --- |
-| _pending_ | Dashboard rebuilt as a cross-brand work queue (Needs you / Up for grabs / Who's on what) + greeting; old stats moved to a new Analytics tab; `claimed_at` added to local mode with a defensive column-add; `listAllLeads` aggregation (§3.16) |
+| `de84e3e` | Dashboard rebuilt as a cross-brand work queue (Needs you / Up for grabs / Who's on what) + greeting; old stats moved to a new Analytics tab; `claimed_at` added to local mode with a defensive column-add; `listAllLeads` aggregation (§3.16) |
 | `1f1d667` | Multi-brand UI on Setup — brand selector tabs + "New brand"; `activeBrandId` in useWorkspace so the active brand is switchable rather than always the first |
 | `86a59fa` | Wire claimed_by into status transitions and display in LeadCard — when a lead transitions to 'queued', auto-set claimed_by = user.id; on 'new', clear it. Displays in the lead card so teammates see who's working on what |
 | `14245e8` | Add `claimed_by` field to leads table, type, and update logic — foundation for showing which user claimed a lead in local mode |
