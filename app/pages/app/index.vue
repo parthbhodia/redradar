@@ -28,6 +28,40 @@
           <span v-if="activeBrand" class="text-xs text-mute">Used to write your reply drafts</span>
         </div>
 
+        <!-- Brand selector -->
+        <div v-if="brands.length" class="mb-4 flex flex-wrap gap-2">
+          <button
+            v-for="brand in brands"
+            :key="brand.id"
+            class="chip"
+            :class="brand.id === activeBrandId ? 'border-signal text-signal' : 'hover:border-line-2'"
+            @click="activeBrandId = brand.id"
+          >
+            {{ brand.name }}
+          </button>
+          <button
+            class="chip border-dashed text-mute hover:border-signal hover:text-signal"
+            @click="showNewBrandForm = !showNewBrandForm"
+          >
+            + New brand
+          </button>
+        </div>
+
+        <!-- New brand form -->
+        <div v-if="showNewBrandForm" class="mb-4 rounded-lg border border-line bg-panel-2 p-3">
+          <form class="flex gap-2" @submit.prevent="createNewBrand">
+            <input
+              v-model="newBrandName"
+              class="input"
+              placeholder="Brand name"
+              required
+              autofocus
+            >
+            <button class="btn-ghost shrink-0" :disabled="busy">Create</button>
+            <button type="button" class="btn-quiet" @click="showNewBrandForm = false">Cancel</button>
+          </form>
+        </div>
+
         <!-- AI fill -->
         <div class="mb-5 rounded-lg border border-line bg-panel-2 p-3">
           <div class="flex flex-col gap-2 sm:flex-row">
@@ -364,6 +398,8 @@ export default {
       keywordSuggestError: '',
       orgName: '',
       newCampaignName: '',
+      newBrandName: '',
+      showNewBrandForm: false,
       newKeyword: { phrase: '', subreddit: '' },
       keywords: [],
       scanResult: null,
@@ -464,6 +500,58 @@ export default {
 
     createWorkspace() {
       return this.run(() => this.createOrg(this.orgName))
+    },
+
+    async createNewBrand() {
+      this.busy = true
+      this.error = ''
+
+      try {
+        if (!this.newBrandName.trim()) {
+          throw new Error('Brand name is required.')
+        }
+
+        if (this.localMode) {
+          await $fetch('/api/workspace', {
+            method: 'POST',
+            body: {
+              action: 'upsert_brand',
+              brand: {
+                name: this.newBrandName,
+              },
+            },
+          })
+        } else {
+          const { data, error } = await this.supabase
+            .from('brands')
+            .insert({
+              org_id: this.org.id,
+              name: this.newBrandName,
+              competitors: [],
+            })
+            .select()
+
+          if (error) throw new Error(error.message)
+          if (!data || data.length === 0) throw new Error('Failed to create brand.')
+        }
+
+        // Reload workspace to get new brand
+        await this.load()
+
+        // Switch to the new brand
+        const newBrand = this.brands.find(b => b.name === this.newBrandName.trim())
+        if (newBrand) {
+          this.activeBrandId = newBrand.id
+        }
+
+        this.newBrandName = ''
+        this.showNewBrandForm = false
+        this.toast('Brand created.', { tone: 'success' })
+      } catch (e) {
+        this.error = e.message
+      } finally {
+        this.busy = false
+      }
     },
 
     async suggestBrand() {

@@ -9,6 +9,7 @@ export function useWorkspace() {
   const org = useState<Org | null>('rr:org', () => null)
   const brands = useState<Brand[]>('rr:brands', () => [])
   const campaigns = useState<Campaign[]>('rr:campaigns', () => [])
+  const activeBrandId = useState<string | null>('rr:brand', () => null)
   const activeCampaignId = useState<string | null>('rr:campaign', () => null)
   const ready = useState<boolean>('rr:ready', () => false)
   const localMode = useState<boolean>('rr:local', () => false)
@@ -16,7 +17,10 @@ export function useWorkspace() {
   const config = useRuntimeConfig()
   const supabase = config.public.localMode ? null : useSupabaseClient()
 
-  const activeBrand = computed(() => brands.value[0] ?? null)
+  const activeBrand = computed(() => {
+    if (!activeBrandId.value) return brands.value[0] ?? null
+    return brands.value.find(b => b.id === activeBrandId.value) ?? brands.value[0] ?? null
+  })
   const activeCampaign = computed(
     () => campaigns.value.find(c => c.id === activeCampaignId.value) ?? null,
   )
@@ -30,6 +34,9 @@ export function useWorkspace() {
       org.value = data.org
       brands.value = data.brands ?? []
       campaigns.value = data.campaigns ?? []
+      if (!activeBrandId.value && brands.value.length) {
+        activeBrandId.value = brands.value[0]!.id
+      }
       if (!activeCampaignId.value || !campaigns.value.some(c => c.id === activeCampaignId.value)) {
         activeCampaignId.value = campaigns.value[0]?.id ?? null
       }
@@ -62,6 +69,10 @@ export function useWorkspace() {
       .order('created_at')
 
     brands.value = (brandRows ?? []) as Brand[]
+
+    if (!activeBrandId.value && brands.value.length) {
+      activeBrandId.value = brands.value[0]!.id
+    }
 
     if (brands.value.length) {
       const { data: campaignRows } = await supabase!
@@ -98,6 +109,7 @@ export function useWorkspace() {
     org,
     brands,
     campaigns,
+    activeBrandId,
     activeCampaignId,
     activeBrand,
     activeCampaign,
