@@ -48,6 +48,13 @@
       Same thread, so only one of you should post.
     </p>
 
+    <!-- A later scan refreshed num_comments past what it was when you posted:
+         worth checking back on the thread, without treating it as new. -->
+    <p v-if="newActivityCount" class="mt-3 flex items-center gap-2 text-xs text-signal-soft">
+      <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-signal" aria-hidden="true" />
+      +{{ newActivityCount }} {{ newActivityCount === 1 ? 'reply' : 'replies' }} since you posted
+    </p>
+
     <div v-if="lead.signals?.length" class="mt-3 flex flex-wrap gap-1.5">
       <span v-for="signal in lead.signals" :key="signal" class="chip">{{ signal }}</span>
     </div>
@@ -192,6 +199,16 @@ export default {
   computed: {
     myId() {
       return this.me?.id ?? null
+    },
+
+    // Snapshotted server-side the moment status became 'replied' (see
+    // migration 0008); num_comments keeps refreshing on every later scan. A
+    // small floor avoids flagging a single stray reply as "new activity".
+    newActivityCount() {
+      if (this.lead.status !== 'replied') return 0
+      if (this.lead.num_comments == null || this.lead.replied_num_comments == null) return 0
+      const delta = this.lead.num_comments - this.lead.replied_num_comments
+      return delta >= 2 ? delta : 0
     },
 
     assigned() {

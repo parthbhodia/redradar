@@ -182,6 +182,7 @@ export async function upsertCandidates(
           signals: c.signals,
           matched_keyword: c.keyword,
           posted_at: c.post.createdAt,
+          num_comments: c.post.numComments,
         })),
         { count: 'exact' },
       )
@@ -195,15 +196,22 @@ export async function upsertCandidates(
 
   let updated = 0
   for (const c of toUpdate) {
+    const patch: Record<string, unknown> = {
+      title: c.post.title,
+      body: c.post.body,
+      score: c.score,
+      signals: c.signals,
+      matched_keyword: c.keyword,
+    }
+    // A source with no engagement data (the search index) reports null —
+    // never let that erase a comment count an earlier OAuth/OpenCLI scan
+    // already recorded, or the "new activity since you replied" delta
+    // breaks the moment a scan happens to fall back to a weaker source.
+    if (c.post.numComments !== null) patch.num_comments = c.post.numComments
+
     const { error: updateError } = await admin
       .from('leads')
-      .update({
-        title: c.post.title,
-        body: c.post.body,
-        score: c.score,
-        signals: c.signals,
-        matched_keyword: c.keyword,
-      })
+      .update(patch)
       .eq('id', existingByExternalId.get(c.post.id)!)
 
     if (updateError) {
