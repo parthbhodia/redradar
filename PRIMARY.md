@@ -675,11 +675,8 @@ Applied in order, by hand in the Supabase SQL editor.
 | `0008_lead_activity_tracking.sql` | `leads.num_comments`/`replied_num_comments` + snapshot trigger — see §3.15 |
 | `0009_reddit_oauth_state.sql` | `reddit_oauth_state` singleton — persists the OAuth token + rate-limit reading across requests, see §3.9 |
 
-0001–0008 applied to production as of 2026-08-03 (0008 run by hand via the
-Supabase SQL editor — no local CLI, see §3.9's env note). **0009's production
-status is unconfirmed** — same manual-apply situation as 0008. Until it runs,
-the adaptive rate-limit protection in §3.9 silently degrades to its pre-store
-behavior (still safe, just not shared across requests) rather than erroring.
+0001–0009 applied to production as of 2026-08-03 (0008 and 0009 both run by
+hand via the Supabase SQL editor — no local CLI, see §3.9's env note).
 
 > ⚠️ **The Supabase MCP connected to this workspace points at a different
 > project** (its migrations are `profile_faqs`, `creator_growth_foundations`,
