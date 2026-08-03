@@ -20,10 +20,12 @@ Built and working: auth (magic link, Google OAuth, password), workspaces, teams
 with invites and roles, per-user drafts, thread claiming with duplicate
 protection, scan history (paginated, with per-keyword drill-down), scheduled
 scans, daily scan limits, seat limits, dashboard, inbox, marketing site, legal
-pages, **Reddit OAuth discovery running live in production** (see §3.9 — this
-was the single biggest open risk in the project until 2026-08-03), a
-per-campaign scan lock with a "recently scanned, scan anyway?" cooldown (§3.14),
-and "new activity since you replied" tracking on leads (§3.15).
+pages, **Reddit discovery via free shreddit-listing adapter** (real timestamps,
+real reply counts; see §3.9.5), **OAuth credentials no longer obtainable but the
+code stays for the day that changes** (see §3.9), a per-campaign scan lock with a
+"recently scanned, scan anyway?" cooldown (§3.14), "new activity since you
+replied" tracking on leads (§3.15), and **claimed_by tracking so teams see who's
+working on each thread**.
 
 Not built: billing, Chrome extension, auto-posting to Reddit, role transfer,
 LLM citation tracking.
@@ -784,6 +786,9 @@ intentional** — the rename to RedIntelli was user-visible strings only.
 
 | Commit | Change |
 | --- | --- |
+| `86a59fa` | Wire claimed_by into status transitions and display in LeadCard — when a lead transitions to 'queued', auto-set claimed_by = user.id; on 'new', clear it. Displays in the lead card so teammates see who's working on what |
+| `14245e8` | Add `claimed_by` field to leads table, type, and update logic — foundation for showing which user claimed a lead in local mode |
+| `808a2c1` | **Add free Reddit discovery source: the internal shreddit listing endpoint** — verified end-to-end against live Reddit; real titles, real timestamps, real reply counts; requires each keyword to have a subreddit set or it errors. See §3.9.5 for the policy reasoning (it's an undocumented frontend detail, but zero cost and reliable) |
 | `a48a827` | Persist OAuth token + rate-limit state in Postgres (migration 0009) — the adapter is rebuilt fresh every request, so the previous commit's adaptive pacing couldn't actually see state across scans until this (§3.9) |
 | `6991433` | Adaptive OAuth pacing off Reddit's `X-Ratelimit-*` response headers, on top of the fixed 1s baseline (§3.9) |
 | `45622ee` | "New activity since you replied" tracking (§3.15) — migration 0008 applied to prod 2026-08-03 |
