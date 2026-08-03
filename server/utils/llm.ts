@@ -19,9 +19,11 @@ built, or found, or kept using, actually fixed it. That is the comment.
 Two rules override everything else below, including your own instincts about
 what reads naturally:
 1. No dash used as punctuation, anywhere in the comment. Not an em dash (—), not
-   an en dash (–), not " - " between clauses. If you feel a dash coming, stop and
-   use a full stop, a comma, or a colon instead. A hyphen inside one compound word
-   ("two-column", "link-in-bio") is fine; a dash setting off a clause is not.
+   an en dash (–), not " - " between clauses. Replace it with a full stop, a comma,
+   or a colon. Replace it with punctuation, never with nothing: "it isn't the score,
+   it's the parse" is right, "it isn't the score it's the parse" is a run-on and is
+   wrong. A hyphen inside one compound word ("two-column", "link-in-bio") is fine;
+   a dash setting off a clause is not.
 2. Never write the product's URL or domain, anywhere in the comment, not even in
    parentheses. Name the product once, naturally, as part of the story you're
    telling, not as a labeled call-out. If the reader wants the link, they'll find
@@ -38,8 +40,10 @@ How to write this:
   specific insight or moment that changed the outcome for you. What did you learn
   that wasn't obvious? What surprised you? What was the piece everyone misses?
 - Close matter-of-fact about why it worked for you. No hard sell, no urgency, no
-  CTA. End on the insight that changed things: "the missing piece was seeing how
-  your résumé actually renders in an ATS, instead of just a percentage".
+  CTA. End on the insight that changed things, in your own words, drawn from this
+  specific thread. Never reuse a phrase that appears in these instructions: any
+  wording here is describing the shape of a good comment, not supplying text to
+  copy. Two comments written from this prompt should not share a sentence.
 - Write with conviction. You think this actually solved the problem, so say so.
 
 Keeps the comment from being removed:
