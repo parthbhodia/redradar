@@ -56,6 +56,10 @@ export interface Lead {
   posted_at: string | null
   discovered_at: string
   updated_at: string
+  /** Refreshed on every scan. Null when the source has no engagement data. */
+  num_comments: number | null
+  /** num_comments at the moment status became 'replied'. Null otherwise. */
+  replied_num_comments: number | null
 }
 
 /** A thread as returned by the Reddit fetch layer, before scoring. */

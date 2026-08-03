@@ -163,6 +163,10 @@ function mapLead(row: Record<string, unknown>): Lead {
     posted_at: (row.posted_at as string | null) ?? null,
     discovered_at: String(row.discovered_at),
     updated_at: String(row.updated_at),
+    // "New activity since you replied" is cloud-only (migration 0008), same
+    // as scan history — local mode's SQLite schema doesn't track either.
+    num_comments: null,
+    replied_num_comments: null,
   }
 }
 
