@@ -84,11 +84,22 @@ function migrate(db: Database.Database) {
       reply_draft text,
       posted_at text,
       claimed_by text,
+      claimed_at text,
       discovered_at text not null,
       updated_at text not null,
       unique (campaign_id, platform, external_id)
     );
   `)
+
+  // `create table if not exists` leaves an existing leads table untouched, so
+  // columns added after a DB was first created won't appear. Add them
+  // defensively — SQLite has no `add column if not exists`, so we read the
+  // current columns and only add what's missing.
+  const leadColumns = new Set(
+    (db.prepare('pragma table_info(leads)').all() as Array<{ name: string }>).map(c => c.name),
+  )
+  if (!leadColumns.has('claimed_by')) db.exec('alter table leads add column claimed_by text')
+  if (!leadColumns.has('claimed_at')) db.exec('alter table leads add column claimed_at text')
 }
 
 export function isLocalMode() {
@@ -163,6 +174,7 @@ function mapLead(row: Record<string, unknown>): Lead {
     reply_draft: (row.reply_draft as string | null) ?? null,
     posted_at: (row.posted_at as string | null) ?? null,
     claimed_by: (row.claimed_by as string | null) ?? null,
+    claimed_at: (row.claimed_at as string | null) ?? null,
     discovered_at: String(row.discovered_at),
     updated_at: String(row.updated_at),
     // "New activity since you replied" is cloud-only (migration 0008), same
@@ -339,12 +351,44 @@ export function listLeads(campaignId: string): Lead[] {
   return rows.map(mapLead)
 }
 
+/** A lead plus the campaign/brand it belongs to, for the cross-brand dashboard. */
+export type LeadWithContext = Lead & {
+  campaign_name: string
+  brand_id: string
+  brand_name: string
+}
+
+/**
+ * Every lead across every campaign the org owns, each tagged with its campaign
+ * and brand. The dashboard's work queue spans brands, so it can't go
+ * campaign-by-campaign like the inbox does.
+ */
+export function listAllLeads(orgId: string): LeadWithContext[] {
+  const rows = getLocalDb()
+    .prepare(`
+      select l.*, c.name as campaign_name, b.id as brand_id, b.name as brand_name
+      from leads l
+      join campaigns c on c.id = l.campaign_id
+      join brands b on b.id = c.brand_id
+      where b.org_id = ?
+      order by l.score desc
+    `)
+    .all(orgId) as Record<string, unknown>[]
+
+  return rows.map(row => ({
+    ...mapLead(row),
+    campaign_name: String(row.campaign_name),
+    brand_id: String(row.brand_id),
+    brand_name: String(row.brand_name),
+  }))
+}
+
 export function getLead(id: string): Lead | null {
   const row = getLocalDb().prepare('select * from leads where id = ?').get(id) as Record<string, unknown> | undefined
   return row ? mapLead(row) : null
 }
 
-export function updateLead(id: string, patch: Partial<Pick<Lead, 'status' | 'reply_draft' | 'score' | 'signals' | 'title' | 'body' | 'matched_keyword' | 'claimed_by'>>) {
+export function updateLead(id: string, patch: Partial<Pick<Lead, 'status' | 'reply_draft' | 'score' | 'signals' | 'title' | 'body' | 'matched_keyword' | 'claimed_by' | 'claimed_at'>>) {
   const current = getLead(id)
   if (!current) return null
 
@@ -365,6 +409,7 @@ export function updateLead(id: string, patch: Partial<Pick<Lead, 'status' | 'rep
       body = @body,
       matched_keyword = @matched_keyword,
       claimed_by = @claimed_by,
+      claimed_at = @claimed_at,
       updated_at = @updated_at
     where id = @id
   `).run({
@@ -377,6 +422,7 @@ export function updateLead(id: string, patch: Partial<Pick<Lead, 'status' | 'rep
     body: next.body,
     matched_keyword: next.matched_keyword,
     claimed_by: next.claimed_by,
+    claimed_at: next.claimed_at,
     updated_at: next.updated_at,
   })
 

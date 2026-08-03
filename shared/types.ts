@@ -55,6 +55,8 @@ export interface Lead {
   reply_draft: string | null
   posted_at: string | null
   claimed_by: string | null
+  /** When claimed_by was set. Powers the "claimed but stale" at-risk signal. */
+  claimed_at: string | null
   discovered_at: string
   updated_at: string
   /** Refreshed on every scan. Null when the source has no engagement data. */

@@ -16,16 +16,18 @@ Supabase**, deployed on Vercel at `www.redintelli.com`.
 The loop: brand → campaign → keywords → scan Reddit → score 0-100 → inbox →
 claim a lead → AI draft → reply on Reddit → mark the status.
 
-Built and working: auth (magic link, Google OAuth, password), workspaces, teams
-with invites and roles, per-user drafts, thread claiming with duplicate
-protection, scan history (paginated, with per-keyword drill-down), scheduled
-scans, daily scan limits, seat limits, dashboard, inbox, marketing site, legal
-pages, **Reddit discovery via free shreddit-listing adapter** (real timestamps,
-real reply counts; see §3.9.5), **OAuth credentials no longer obtainable but the
-code stays for the day that changes** (see §3.9), a per-campaign scan lock with a
-"recently scanned, scan anyway?" cooldown (§3.14), "new activity since you
-replied" tracking on leads (§3.15), and **claimed_by tracking so teams see who's
-working on each thread**.
+Built and working: auth (magic link, Google OAuth, password), workspaces,
+**multiple brands per workspace** (switcher on Setup), teams with invites and
+roles, per-user drafts, thread claiming with duplicate protection, scan history
+(paginated, with per-keyword drill-down), scheduled scans, daily scan limits,
+seat limits, **a cross-brand Dashboard work queue** ("what do I do next?", §3.16)
+with the stats split out to their own **Analytics** tab, inbox, marketing site,
+legal pages, **Reddit discovery via free shreddit-listing adapter** (real
+timestamps, real reply counts; see §3.9.5), **OAuth credentials no longer
+obtainable but the code stays for the day that changes** (see §3.9), a
+per-campaign scan lock with a "recently scanned, scan anyway?" cooldown (§3.14),
+"new activity since you replied" tracking on leads (§3.15), and **claim tracking
+(who + when) so teams see who's working on each thread**.
 
 Not built: billing, Chrome extension, auto-posting to Reddit, role transfer,
 LLM citation tracking.
@@ -659,6 +661,45 @@ recorded — same null-vs-zero discipline as §3.9.1.
 **Migrations must be applied by hand, same as always (§4) — this one does
 nothing until it's run against the production database.**
 
+### 3.16 The Dashboard is a work queue, not a stats page — Analytics is the stats page
+
+As of the multi-brand + dashboard rework, the app has four tabs:
+**Dashboard · Inbox · Analytics · Setup**. The split is deliberate and worth
+preserving:
+
+- **Dashboard** answers "what do I, this logged-in person, do next?" It spans
+  every brand and campaign the org owns — not one campaign like Inbox/Analytics
+  — because an employee's work isn't scoped to a single campaign. Three
+  sections: **Needs you** (my claimed-but-unreplied threads, plus my replied
+  threads that grew new comments), **Up for grabs** (unclaimed, `status = new`,
+  score ≥ 40, ranked by a *freshness-weighted* priority so a fresh 60 outranks
+  a week-old 70), and **Who's on what** (cloud + real team only). Greets by
+  first name off `profiles.display_name`, falling back to the email prefix.
+- **Analytics** is the *old* Dashboard verbatim — KPIs, keyword performance,
+  score distribution, pipeline, scan history — still per-campaign. It's a
+  retro/manager view, so it lives behind its own tab.
+
+Two things to know before editing:
+
+1. **The "at-risk" signal needs a claim timestamp.** A claimed thread that's
+   sat unreplied >24h is the worst state in the system — it blocks teammates
+   *and* stalls — so it sorts to the top of "Needs you". Cloud has always had
+   `leads.claimed_at`; local mode did **not**, so this rework added a
+   `claimed_at` column to `local-db.ts`, set alongside `claimed_by` on claim
+   and cleared on release. Because the local schema uses
+   `create table if not exists`, existing dev DBs won't pick up new columns —
+   `migrate()` now does a defensive `pragma table_info` + `alter table add
+   column` for `claimed_by`/`claimed_at`. **No production migration**: cloud
+   already had both (`assigned_to` + `claimed_at`).
+2. **"Mine" and "claimed" are mode-specific.** Cloud reads `assigned_to`; local
+   reads `claimed_by`. The dashboard's `assigneeOf()` hides that split — use it,
+   don't read either column directly.
+
+The cross-brand query is `listAllLeads(orgId)` in `local-db.ts` (joins
+leads→campaigns→brands) for local, and a single `.in('campaign_id', …)` over the
+org's campaigns for cloud. Clicking any row sets the shared `activeCampaignId`
+and routes to the Inbox, so it opens on the right campaign.
+
 ---
 
 ## 4. Migrations
@@ -786,6 +827,8 @@ intentional** — the rename to RedIntelli was user-visible strings only.
 
 | Commit | Change |
 | --- | --- |
+| _pending_ | Dashboard rebuilt as a cross-brand work queue (Needs you / Up for grabs / Who's on what) + greeting; old stats moved to a new Analytics tab; `claimed_at` added to local mode with a defensive column-add; `listAllLeads` aggregation (§3.16) |
+| `1f1d667` | Multi-brand UI on Setup — brand selector tabs + "New brand"; `activeBrandId` in useWorkspace so the active brand is switchable rather than always the first |
 | `86a59fa` | Wire claimed_by into status transitions and display in LeadCard — when a lead transitions to 'queued', auto-set claimed_by = user.id; on 'new', clear it. Displays in the lead card so teammates see who's working on what |
 | `14245e8` | Add `claimed_by` field to leads table, type, and update logic — foundation for showing which user claimed a lead in local mode |
 | `808a2c1` | **Add free Reddit discovery source: the internal shreddit listing endpoint** — verified end-to-end against live Reddit; real titles, real timestamps, real reply counts; requires each keyword to have a subreddit set or it errors. See §3.9.5 for the policy reasoning (it's an undocumented frontend detail, but zero cost and reliable) |

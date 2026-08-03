@@ -3,6 +3,7 @@ import {
   createCampaign,
   createLocalOrg,
   getOrgForUser,
+  listAllLeads,
   listBrands,
   listCampaigns,
   listKeywords,
@@ -24,9 +25,10 @@ export default defineEventHandler(async (event) => {
 
   if (method === 'GET') {
     const query = getQuery(event)
+    const me = { id: user.id, email: user.email }
     const org = getOrgForUser(user.id)
     if (!org) {
-      return { org: null, brands: [], campaigns: [], keywords: [], leads: [] }
+      return { org: null, brands: [], campaigns: [], keywords: [], leads: [], me }
     }
 
     const brands = listBrands(org.id)
@@ -40,7 +42,14 @@ export default defineEventHandler(async (event) => {
       return { leads: listLeads(query.campaignId) }
     }
 
-    return { org, brands, campaigns }
+    // Cross-campaign work queue for the dashboard: every lead the org owns,
+    // tagged with its brand/campaign, plus who's asking (for the greeting and
+    // the "mine" split).
+    if (query.allLeads === '1') {
+      return { leads: listAllLeads(org.id), me }
+    }
+
+    return { org, brands, campaigns, me }
   }
 
   if (method === 'POST') {
@@ -61,7 +70,7 @@ export default defineEventHandler(async (event) => {
       subreddit?: string | null
       keywordId?: string
       leadId?: string
-      patch?: { status?: string, reply_draft?: string }
+      patch?: { status?: string, reply_draft?: string, claimed_by?: string | null, claimed_at?: string | null }
     }>(event)
 
     switch (body.action) {
@@ -113,12 +122,15 @@ export default defineEventHandler(async (event) => {
           throw createError({ statusCode: 400, statusMessage: 'leadId and patch required.' })
         }
         const patch = body.patch as any
-        // When status changes to 'queued', claim the lead for this user.
-        // When it changes to 'new', release it (revert claimed_by to null).
+        // When status changes to 'queued', claim the lead for this user and
+        // stamp when. When it goes back to 'new', release it — clear both, so
+        // the dashboard's "claimed but stale" logic can't fire on a free lead.
         if (patch.status === 'queued') {
           patch.claimed_by = user.id
+          patch.claimed_at = new Date().toISOString()
         } else if (patch.status === 'new') {
           patch.claimed_by = null
+          patch.claimed_at = null
         }
         const lead = updateLead(body.leadId, patch)
         return { lead }

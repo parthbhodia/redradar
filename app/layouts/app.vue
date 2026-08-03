@@ -98,6 +98,7 @@ export default {
       links: [
         { to: '/app/dashboard', label: 'Dashboard' },
         { to: '/app/inbox', label: 'Inbox' },
+        { to: '/app/analytics', label: 'Analytics' },
         { to: '/app', label: 'Setup' },
       ],
       // Recomputed on quota change so the tooltip doesn't go stale mid-session.
